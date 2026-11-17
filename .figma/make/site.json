@@ -1,0 +1,10 @@
+{
+  "description": "Manage projects, tasks, calendars, reminders, and team chats in one workspace, helping teams stay organized and meet deadlines.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

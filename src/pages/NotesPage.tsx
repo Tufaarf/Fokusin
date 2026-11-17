@@ -1,0 +1,737 @@
+import { useEffect, useMemo, useState } from "react";
+import {
+  Clock,
+  Filter,
+  Pin,
+  PinOff,
+  Plus,
+  Search,
+  Sparkles,
+  StickyNote,
+  Tag,
+  Trash2,
+  X,
+  Check,
+  FileDown,
+} from "lucide-react";
+import { WysiwygEditor } from "../components/WysiwygEditor";
+import { useAppStore } from "../store";
+import type { Note } from "../types";
+import { cn } from "../components/ui";
+
+const NOTE_COLORS = [
+  {
+    id: "default",
+    name: "Standar",
+    bg: "bg-zinc-100 dark:bg-zinc-800",
+    border: "border-zinc-300 dark:border-zinc-700",
+    ring: "ring-zinc-400",
+  },
+  {
+    id: "amber",
+    name: "Amber",
+    bg: "bg-amber-100 dark:bg-amber-950/60",
+    border: "border-amber-300 dark:border-amber-800",
+    ring: "ring-amber-500",
+  },
+  {
+    id: "violet",
+    name: "Violet",
+    bg: "bg-violet-100 dark:bg-violet-950/60",
+    border: "border-violet-300 dark:border-violet-800",
+    ring: "ring-violet-500",
+  },
+  {
+    id: "blue",
+    name: "Blue",
+    bg: "bg-blue-100 dark:bg-blue-950/60",
+    border: "border-blue-300 dark:border-blue-800",
+    ring: "ring-blue-500",
+  },
+  {
+    id: "emerald",
+    name: "Emerald",
+    bg: "bg-emerald-100 dark:bg-emerald-950/60",
+    border: "border-emerald-300 dark:border-emerald-800",
+    ring: "ring-emerald-500",
+  },
+  {
+    id: "rose",
+    name: "Rose",
+    bg: "bg-rose-100 dark:bg-rose-950/60",
+    border: "border-rose-300 dark:border-rose-800",
+    ring: "ring-rose-500",
+  },
+];
+
+function stripHtml(html: string): string {
+  if (typeof window === "undefined") return html;
+  const tmp = document.createElement("DIV");
+  tmp.innerHTML = html;
+  return tmp.textContent || tmp.innerText || "";
+}
+
+function formatDate(isoDate?: string): string {
+  if (!isoDate) return "";
+  try {
+    const d = new Date(isoDate);
+    return d.toLocaleDateString("id-ID", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return isoDate;
+  }
+}
+
+export function NotesPage() {
+  const {
+    currentUser,
+    notes,
+    notesLoading,
+    syncNotes,
+    addNote,
+    updateNote,
+    deleteNote,
+    togglePinNote,
+  } = useAppStore();
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [editingNote, setEditingNote] = useState<Note | null>(null);
+  const [isNewNoteOpen, setIsNewNoteOpen] = useState(false);
+
+  // Form states for currently edited or created note
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [color, setColor] = useState("default");
+  const [isPinned, setIsPinned] = useState(false);
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Initial load
+  useEffect(() => {
+    syncNotes();
+  }, [syncNotes]);
+
+  // Extract all unique tags
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    notes.forEach((n) => {
+      n.tags?.forEach((t) => tagSet.add(t));
+    });
+    return Array.from(tagSet);
+  }, [notes]);
+
+  // Filtered notes
+  const filteredNotes = useMemo(() => {
+    return notes.filter((n) => {
+      const q = searchQuery.toLowerCase().trim();
+      const matchQuery =
+        !q ||
+        n.title.toLowerCase().includes(q) ||
+        stripHtml(n.content).toLowerCase().includes(q) ||
+        n.tags?.some((t) => t.toLowerCase().includes(q));
+
+      const matchTag = !selectedTag || n.tags?.includes(selectedTag);
+
+      return matchQuery && matchTag;
+    });
+  }, [notes, searchQuery, selectedTag]);
+
+  const pinnedNotes = useMemo(() => filteredNotes.filter((n) => n.isPinned), [filteredNotes]);
+  const regularNotes = useMemo(() => filteredNotes.filter((n) => !n.isPinned), [filteredNotes]);
+
+  // Open editor for a new note
+  const handleOpenNewNote = () => {
+    setEditingNote(null);
+    setTitle("");
+    setContent("");
+    setColor("default");
+    setIsPinned(false);
+    setTags([]);
+    setTagInput("");
+    setIsNewNoteOpen(true);
+  };
+
+  // Open editor for an existing note
+  const handleOpenEditNote = (note: Note) => {
+    setEditingNote(note);
+    setTitle(note.title);
+    setContent(note.content || "");
+    setColor(note.color || "default");
+    setIsPinned(!!note.isPinned);
+    setTags(note.tags || []);
+    setTagInput("");
+    setIsNewNoteOpen(true);
+  };
+
+  // Close editor modal
+  const handleCloseModal = () => {
+    setIsNewNoteOpen(false);
+    setEditingNote(null);
+    setSaveSuccess(false);
+  };
+
+  // Add tag
+  const handleAddTag = () => {
+    const trimmed = tagInput.trim();
+    if (trimmed && !tags.includes(trimmed)) {
+      setTags([...tags, trimmed]);
+      setTagInput("");
+    }
+  };
+
+  // Remove tag
+  const handleRemoveTag = (tagToRemove: string) => {
+    setTags(tags.filter((t) => t !== tagToRemove));
+  };
+
+  // Save note
+  const handleSave = async () => {
+    if (!title.trim()) {
+      alert("Judul catatan wajib diisi.");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      if (editingNote) {
+        await updateNote(editingNote.id, {
+          title: title.trim(),
+          content,
+          color,
+          isPinned,
+          tags,
+        });
+      } else {
+        await addNote({
+          title: title.trim(),
+          content,
+          color,
+          isPinned,
+          tags,
+        });
+      }
+      setSaveSuccess(true);
+      setTimeout(() => {
+        handleCloseModal();
+      }, 500);
+    } catch (err) {
+      console.error(err);
+      alert("Gagal menyimpan catatan.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Delete note
+  const handleDelete = async (id: string | number) => {
+    if (window.confirm("Apakah Anda yakin ingin menghapus catatan ini?")) {
+      await deleteNote(id);
+      if (editingNote && editingNote.id === id) {
+        handleCloseModal();
+      }
+    }
+  };
+
+  // Export note to markdown/txt
+  const handleExportText = (note: Note) => {
+    const textContent = `${note.title}\n\n${stripHtml(note.content)}`;
+    const blob = new Blob([textContent], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${note.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Top Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-2xl">
+              Catatan & Dokumen
+            </h1>
+            <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700 dark:bg-violet-950 dark:text-violet-300">
+              WYSIWYG
+            </span>
+            {(currentUser?.role === "superadmin" || currentUser?.is_superadmin) && (
+              <span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-0.5 text-xs font-semibold text-violet-700 dark:border-violet-900 dark:bg-violet-950 dark:text-violet-300">
+                🛡️ Superadmin: Akses Semua Catatan Pengguna
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-xs text-zinc-500 sm:text-sm">
+            Tulis catatan berformat rapi, dokumentasi, dan ide proyek dengan editor kaya fitur.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleOpenNewNote}
+            className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-700 active:scale-[0.98] sm:text-sm"
+          >
+            <Plus size={16} />
+            <span>Catatan Baru</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Filter and Search Bar */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative flex-1 sm:max-w-md">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+          <input
+            type="text"
+            placeholder="Cari catatan, isi teks, atau tag..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full rounded-lg border border-zinc-200 bg-white py-2 pl-9 pr-3 text-xs placeholder:text-zinc-400 focus:border-violet-500 focus:outline-none dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 sm:text-sm"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+
+        {/* Tags horizontal scroll */}
+        {allTags.length > 0 && (
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+            <span className="flex items-center gap-1 text-zinc-400">
+              <Filter size={13} />
+            </span>
+            <button
+              onClick={() => setSelectedTag(null)}
+              className={cn(
+                "rounded-md px-2.5 py-1 text-xs font-medium transition",
+                selectedTag === null
+                  ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-950"
+                  : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700",
+              )}
+            >
+              Semua
+            </button>
+            {allTags.map((tag) => (
+              <button
+                key={tag}
+                onClick={() => setSelectedTag(selectedTag === tag ? null : tag)}
+                className={cn(
+                  "rounded-md px-2.5 py-1 text-xs font-medium transition",
+                  selectedTag === tag
+                    ? "bg-violet-600 text-white dark:bg-violet-500"
+                    : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700",
+                )}
+              >
+                #{tag}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Loading state */}
+      {notesLoading && (
+        <div className="py-12 text-center text-xs text-zinc-400 sm:text-sm">
+          Menyinkronkan catatan...
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!notesLoading && filteredNotes.length === 0 && (
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-200 bg-white/50 p-12 text-center dark:border-zinc-800 dark:bg-zinc-900/40">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-violet-100 text-violet-600 dark:bg-violet-950/60 dark:text-violet-400">
+            <StickyNote size={24} />
+          </div>
+          <h3 className="mt-4 text-base font-semibold text-zinc-900 dark:text-zinc-100">
+            {searchQuery || selectedTag ? "Tidak ada catatan yang cocok" : "Belum ada catatan"}
+          </h3>
+          <p className="mt-1 max-w-sm text-xs text-zinc-500 dark:text-zinc-400">
+            {searchQuery || selectedTag
+              ? "Coba gunakan kata kunci pencarian yang lain atau reset filter tag."
+              : "Buat catatan pertama Anda sekarang untuk mencatat ide, hasil meeting, atau dokumentasi."}
+          </p>
+          <button
+            onClick={handleOpenNewNote}
+            className="mt-5 inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-700"
+          >
+            <Plus size={16} />
+            <span>Tulis Catatan Sekarang</span>
+          </button>
+        </div>
+      )}
+
+      {/* Pinned Notes Section */}
+      {!notesLoading && pinnedNotes.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-xs font-semibold tracking-wider text-zinc-500 uppercase">
+            <Pin size={13} className="text-violet-500" />
+            <span>Disematkan ({pinnedNotes.length})</span>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {pinnedNotes.map((note) => (
+              <NoteCard
+                key={note.id}
+                note={note}
+                onEdit={() => handleOpenEditNote(note)}
+                onDelete={() => handleDelete(note.id)}
+                onTogglePin={() => togglePinNote(note.id)}
+                onExport={() => handleExportText(note)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Regular Notes Section */}
+      {!notesLoading && regularNotes.length > 0 && (
+        <div className="space-y-3">
+          {pinnedNotes.length > 0 && (
+            <div className="flex items-center gap-2 text-xs font-semibold tracking-wider text-zinc-500 uppercase">
+              <Sparkles size={13} />
+              <span>Semua Catatan ({regularNotes.length})</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {regularNotes.map((note) => (
+              <NoteCard
+                key={note.id}
+                note={note}
+                onEdit={() => handleOpenEditNote(note)}
+                onDelete={() => handleDelete(note.id)}
+                onTogglePin={() => togglePinNote(note.id)}
+                onExport={() => handleExportText(note)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Editor Modal / Drawer */}
+      {isNewNoteOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm sm:p-6 animate-in fade-in duration-200">
+          <div className="flex max-h-[92vh] w-full max-w-4xl flex-col rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-950">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-950 dark:text-violet-300">
+                  <StickyNote size={18} />
+                </div>
+                <div>
+                  <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 sm:text-base">
+                    {editingNote ? "Edit Catatan" : "Catatan Baru"}
+                  </h2>
+                  <p className="text-[11px] text-zinc-500">
+                    {editingNote
+                      ? `Terakhir diubah: ${formatDate(editingNote.updatedAt)}`
+                      : "Gunakan toolbar WYSIWYG untuk memformat teks"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPinned(!isPinned)}
+                  title={isPinned ? "Lepas sematan" : "Sematkan ke atas"}
+                  className={cn(
+                    "rounded-lg p-2 transition",
+                    isPinned
+                      ? "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300"
+                      : "text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900",
+                  )}
+                >
+                  {isPinned ? <Pin size={17} /> : <PinOff size={17} />}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="rounded-lg p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-900 dark:hover:text-zinc-200"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 space-y-4 overflow-y-auto p-6">
+              {/* Title input */}
+              <div>
+                <input
+                  type="text"
+                  placeholder="Judul Catatan..."
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full border-none bg-transparent text-xl font-bold tracking-tight text-zinc-900 placeholder:text-zinc-300 focus:outline-none dark:text-zinc-50 dark:placeholder:text-zinc-700 sm:text-2xl"
+                  autoFocus
+                />
+              </div>
+
+              {/* Color picker & Tag controls */}
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-100 bg-zinc-50/70 p-3 dark:border-zinc-800/80 dark:bg-zinc-900/40">
+                {/* Color Selector */}
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-medium text-zinc-500">Warna Aksen:</span>
+                  <div className="flex items-center gap-1.5">
+                    {NOTE_COLORS.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setColor(c.id)}
+                        title={c.name}
+                        className={cn(
+                          "h-5 w-5 rounded-full border transition-all",
+                          c.bg,
+                          c.border,
+                          color === c.id
+                            ? `ring-2 ${c.ring} scale-110 shadow-sm`
+                            : "opacity-70 hover:opacity-100",
+                        )}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tag manager */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Tag size={13} className="text-zinc-400" />
+                  {tags.map((t) => (
+                    <span
+                      key={t}
+                      className="inline-flex items-center gap-1 rounded-md bg-zinc-200/80 px-2 py-0.5 text-[11px] font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                    >
+                      #{t}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveTag(t)}
+                        className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-100"
+                      >
+                        <X size={11} />
+                      </button>
+                    </span>
+                  ))}
+
+                  <div className="flex items-center">
+                    <input
+                      type="text"
+                      placeholder="+ Tag (Enter)"
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAddTag();
+                        }
+                      }}
+                      className="h-6 w-24 rounded border border-zinc-200 bg-white px-2 text-[11px] placeholder:text-zinc-400 focus:border-violet-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* WYSIWYG Editor */}
+              <div className="min-h-[320px]">
+                <WysiwygEditor
+                  content={content}
+                  onChange={setContent}
+                  placeholder="Mulai ketikkan isi catatan Anda... Gunakan tombol toolbar di atas untuk heading, tebal, miring, list, kutipan, dan lainnya."
+                  minHeight="min-h-[300px]"
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-between border-t border-zinc-200 px-6 py-4 dark:border-zinc-800">
+              <div>
+                {editingNote && (
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(editingNote.id)}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-rose-500 transition hover:text-rose-600"
+                  >
+                    <Trash2 size={15} />
+                    <span>Hapus Catatan</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="rounded-lg border border-zinc-200 px-4 py-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"
+                >
+                  Batal
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-lg px-5 py-2 text-xs font-semibold text-white transition active:scale-[0.98]",
+                    saveSuccess
+                      ? "bg-emerald-600"
+                      : "bg-violet-600 hover:bg-violet-700 disabled:opacity-50",
+                  )}
+                >
+                  {saveSuccess ? (
+                    <>
+                      <Check size={16} />
+                      <span>Tersimpan!</span>
+                    </>
+                  ) : isSaving ? (
+                    <span>Menyimpan...</span>
+                  ) : (
+                    <span>{editingNote ? "Simpan Perubahan" : "Simpan Catatan"}</span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface NoteCardProps {
+  note: Note;
+  onEdit: () => void;
+  onDelete: () => void;
+  onTogglePin: () => void;
+  onExport: () => void;
+}
+
+function NoteCard({ note, onEdit, onDelete, onTogglePin, onExport }: NoteCardProps) {
+  const colorMeta = NOTE_COLORS.find((c) => c.id === note.color) || NOTE_COLORS[0];
+  const plainText = stripHtml(note.content);
+
+  return (
+    <div
+      onClick={onEdit}
+      className={cn(
+        "group relative flex flex-col justify-between rounded-xl border bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md cursor-pointer dark:bg-zinc-950",
+        note.isPinned
+          ? "border-violet-300 dark:border-violet-900/60 ring-1 ring-violet-500/20"
+          : "border-zinc-200 dark:border-zinc-800/80 hover:border-zinc-300 dark:hover:border-zinc-700",
+      )}
+    >
+      {/* Accent Color top strip */}
+      <div className={cn("absolute inset-x-0 top-0 h-1 rounded-t-xl", colorMeta.bg)} />
+
+      <div>
+        {/* Header row */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h3 className="line-clamp-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100 group-hover:text-violet-600 dark:group-hover:text-violet-400">
+              {note.title}
+            </h3>
+            {(note.userName || note.userEmail) && (
+              <p className="mt-0.5 truncate text-[10px] text-zinc-400 dark:text-zinc-500">
+                Oleh:{" "}
+                <span className="font-medium text-zinc-600 dark:text-zinc-300">
+                  {note.userName || note.userEmail}
+                </span>
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onTogglePin();
+              }}
+              title={note.isPinned ? "Lepas sematan" : "Sematkan"}
+              className={cn(
+                "rounded-md p-1 transition",
+                note.isPinned
+                  ? "text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-950/40"
+                  : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-900 dark:hover:text-zinc-200",
+              )}
+            >
+              <Pin
+                size={14}
+                className={note.isPinned ? "fill-violet-600 dark:fill-violet-400" : ""}
+              />
+            </button>
+          </div>
+        </div>
+
+        {/* Content Excerpt */}
+        <p className="mt-2 line-clamp-4 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
+          {plainText || <span className="italic text-zinc-400">Catatan kosong</span>}
+        </p>
+      </div>
+
+      {/* Footer area */}
+      <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-900">
+        {/* Tags */}
+        {note.tags && note.tags.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-1">
+            {note.tags.slice(0, 3).map((t) => (
+              <span
+                key={t}
+                className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400"
+              >
+                #{t}
+              </span>
+            ))}
+            {note.tags.length > 3 && (
+              <span className="text-[10px] text-zinc-400">+{note.tags.length - 3}</span>
+            )}
+          </div>
+        )}
+
+        <div className="flex items-center justify-between text-[11px] text-zinc-400">
+          <span className="flex items-center gap-1">
+            <Clock size={11} />
+            <span>{formatDate(note.updatedAt || note.createdAt)}</span>
+          </span>
+
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onExport();
+              }}
+              title="Unduh sebagai file teks"
+              className="rounded p-1 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-900 dark:hover:text-zinc-200"
+            >
+              <FileDown size={13} />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+              title="Hapus catatan"
+              className="rounded p-1 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40"
+            >
+              <Trash2 size={13} />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
