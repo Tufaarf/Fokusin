@@ -21,6 +21,11 @@ let cachedBaseUrl: string | null = null;
 function getCandidateBaseUrls(): string[] {
   const candidates: string[] = [];
 
+   const envUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+  if (envUrl && envUrl !== "/api" && !candidates.includes(envUrl)) {
+    candidates.push(envUrl);
+  }
+
   // 1. If a working base URL was previously confirmed, prioritize it
   if (cachedBaseUrl) {
     candidates.push(cachedBaseUrl);
@@ -41,10 +46,7 @@ function getCandidateBaseUrls(): string[] {
   }
 
   // 4. Configured environment URL
-  const envUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
-  if (envUrl && envUrl !== "/api" && !candidates.includes(envUrl)) {
-    candidates.push(envUrl);
-  }
+ 
 
   // 5. Default localhost fallback
   const defaultLocal = "http://localhost:8000/api";
