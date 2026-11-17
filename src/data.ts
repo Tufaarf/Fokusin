@@ -230,7 +230,7 @@ export const initialNotes: Note[] = [
     isPinned: true,
     tags: ["Roadmap", "Ide", "Fokusin"],
     content:
-      '<h2>Roadmap Fitur Prioritas Fokusin</h2><p>Berikut adalah beberapa ide utama yang perlu dieksekusi bersama tim untuk meningkatkan produktivitas:</p><ul><li><strong>WYSIWYG Rich Notes:</strong> Menyimpan dokumen dan catatan berformat langsung di aplikasi.</li><li><strong>Task Reminders & Push:</strong> Integrasi notifikasi H-3 dan H-1 deadline.</li><li><strong>Dark Mode Polishing:</strong> Memastikan kontras elemen warna kartu nyaman di mata.</li></ul><blockquote><p>"Fokus pada hal penting, selesaikan satu per satu tanpa distraksi."</p></blockquote>',
+      '<h2>Roadmap Fitur Prioritas Fokusin</h2><p>Berikut adalah beberapa ide utama yang perlu dieksekusi bersama tim untuk meningkatkan produktivitas:</p><ul><li><strong>WYSIWYG Rich Notes:</strong> Menyimpan dokumen dan catatan berformat langsung di aplikasi.</li><li><strong>Task Reminders & Push:</strong> Integrasi notifikasi H-3 dan H-1 deadline.</li><li><strong>Dark Mode Polishing:</strong> Memastikan kontras elemen warna kartu nyaman di mata.</li></ul><p>Tugas aktif yang berhubungan dengan roadmap ini: <a href="#task-TASK-142" class="task-mention-chip">@TASK-142 (Finalize onboarding flow)</a> dan <a href="#task-TASK-138" class="task-mention-chip">@TASK-138 (API contract review)</a>.</p><p>Referensi desain dan dokumentasi UI dapat dilihat di tautan: <a href="https://tailwindcss.com" target="_blank" rel="noopener noreferrer">https://tailwindcss.com</a> dan <a href="https://vite.dev" target="_blank" rel="noopener noreferrer">https://vite.dev</a>.</p><blockquote><p>"Fokus pada hal penting, selesaikan satu per satu tanpa distraksi."</p></blockquote>',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -241,7 +241,7 @@ export const initialNotes: Note[] = [
     isPinned: true,
     tags: ["Meeting", "Sprint"],
     content:
-      "<h3>Sprint Planning #14</h3><p><strong>Tanggal:</strong> 17 November 2026</p><p><strong>Peserta:</strong> Tim Fokusin (Daffa, Naya, Alif, Sarah)</p><h4>Poin Pembahasan:</h4><ol><li>Review performa database query di Task Controller dan optimasi eager loading.</li><li>Implementasi modul Catatan (Notes) lengkap dengan rich text editor WYSIWYG.</li><li>Integrasi live chat WebSocket dengan Laravel Echo & Reverb.</li></ol><p><em>Action item:</em> Backend siapkan endpoint REST API, Frontend hubungkan navigasi dan autosave.</p>",
+      '<h3>Sprint Planning #14</h3><p><strong>Tanggal:</strong> 17 November 2026</p><p><strong>Peserta:</strong> Tim Fokusin (Daffa, Naya, Alif, Sarah)</p><h4>Poin Pembahasan:</h4><ol><li>Review performa database query di Task Controller dan optimasi eager loading.</li><li>Implementasi modul Catatan (Notes) lengkap dengan rich text editor WYSIWYG, link web, dan task mention.</li><li>Integrasi live chat WebSocket dengan Laravel Echo & Reverb.</li></ol><p><em>Action item:</em> Tindak lanjuti task <a href="#task-TASK-208" class="task-mention-chip">@TASK-208 (Pricing page content)</a> dan pantau <a href="#task-TASK-211" class="task-mention-chip">@TASK-211 (Core Web Vitals audit)</a>.</p>',
     createdAt: new Date(Date.now() - 3600000).toISOString(),
     updatedAt: new Date(Date.now() - 3600000).toISOString(),
   },

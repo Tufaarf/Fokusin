@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
@@ -20,7 +20,15 @@ import {
   Eraser,
   RotateCcw,
   RotateCw,
+  Link as LinkIcon,
+  Unlink,
+  AtSign,
+  Search,
+  X,
+  CheckCircle2,
 } from "lucide-react";
+import { useAppStore } from "../store";
+import type { Project, Task } from "../types";
 import { cn } from "./ui";
 
 interface WysiwygEditorProps {
@@ -30,6 +38,8 @@ interface WysiwygEditorProps {
   editable?: boolean;
   minHeight?: string;
   className?: string;
+  tasks?: Task[];
+  projects?: Project[];
 }
 
 export function WysiwygEditor({
@@ -39,12 +49,51 @@ export function WysiwygEditor({
   editable = true,
   minHeight = "min-h-[260px]",
   className,
+  tasks: customTasks,
+  projects: customProjects,
 }: WysiwygEditorProps) {
+  const storeTasks = useAppStore((state) => state.tasks);
+  const storeProjects = useAppStore((state) => state.projects);
+  const taskList = customTasks ?? storeTasks;
+  const projectList = customProjects ?? storeProjects;
+
+  const [isTaskPickerOpen, setIsTaskPickerOpen] = useState(false);
+  const [taskSearch, setTaskSearch] = useState("");
+  const taskPickerRef = useRef<HTMLDivElement>(null);
+  const taskSearchInputRef = useRef<HTMLInputElement>(null);
+
+  // Close task picker on click outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (taskPickerRef.current && !taskPickerRef.current.contains(event.target as Node)) {
+        setIsTaskPickerOpen(false);
+      }
+    }
+    if (isTaskPickerOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      // Focus search input on open
+      setTimeout(() => taskSearchInputRef.current?.focus(), 50);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isTaskPickerOpen]);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
         heading: {
           levels: [1, 2, 3],
+        },
+        link: {
+          openOnClick: false,
+          HTMLAttributes: {
+            class:
+              "text-violet-600 underline dark:text-violet-400 hover:text-violet-700 font-medium cursor-pointer",
+            target: "_blank",
+            rel: "noopener noreferrer",
+          },
+          autolink: true,
         },
       }),
       Underline,
@@ -59,6 +108,15 @@ export function WysiwygEditor({
       onChange(editor.getHTML());
     },
     editorProps: {
+      handleKeyDown(_view, event) {
+        if (event.key === "@") {
+          setIsTaskPickerOpen(true);
+        } else if (event.key === "Escape" && isTaskPickerOpen) {
+          setIsTaskPickerOpen(false);
+          return true;
+        }
+        return false;
+      },
       attributes: {
         class: cn(
           "tiptap focus:outline-none px-4 py-3 text-sm leading-relaxed text-zinc-900 dark:text-zinc-100",
@@ -68,7 +126,7 @@ export function WysiwygEditor({
     },
   });
 
-  // Sync content if changed from outside (e.g. switching between different notes)
+  // Sync content if changed from outside
   useEffect(() => {
     if (editor && content !== editor.getHTML()) {
       editor.commands.setContent(content, { emitUpdate: false });
@@ -82,6 +140,21 @@ export function WysiwygEditor({
     }
   }, [editable, editor]);
 
+  // Filter tasks for task picker
+  const filteredTasks = useMemo(() => {
+    const q = taskSearch.toLowerCase().trim();
+    if (!q) return taskList.slice(0, 15);
+    return taskList
+      .filter((t) => {
+        const matchId = String(t.id).toLowerCase().includes(q);
+        const matchTitle = t.title.toLowerCase().includes(q);
+        const proj = projectList.find((p) => p.id === t.projectId);
+        const matchProject = proj ? proj.name.toLowerCase().includes(q) : false;
+        return matchId || matchTitle || matchProject;
+      })
+      .slice(0, 15);
+  }, [taskList, projectList, taskSearch]);
+
   if (!editor) {
     return (
       <div
@@ -94,6 +167,65 @@ export function WysiwygEditor({
       </div>
     );
   }
+
+  // Handle Link Insertion
+  const handleSetLink = () => {
+    const previousUrl = editor.getAttributes("link")?.href || "";
+    const url = window.prompt("Masukkan URL tautan web (contoh: https://google.com):", previousUrl);
+    if (url === null) return;
+
+    if (url.trim() === "") {
+      editor.chain().focus().extendMarkRange("link").unsetLink().run();
+      return;
+    }
+
+    let formatted = url.trim();
+    if (
+      !/^https?:\/\//i.test(formatted) &&
+      !formatted.startsWith("mailto:") &&
+      !formatted.startsWith("#")
+    ) {
+      formatted = `https://${formatted}`;
+    }
+
+    editor
+      .chain()
+      .focus()
+      .extendMarkRange("link")
+      .setLink({ href: formatted, target: "_blank" })
+      .run();
+  };
+
+  const handleUnsetLink = () => {
+    editor.chain().focus().extendMarkRange("link").unsetLink().run();
+  };
+
+  // Handle Task Mention Insertion
+  const handleSelectTask = (task: Task) => {
+    if (!editor) return;
+
+    // Check if user just typed '@' right before the selection
+    const { from } = editor.state.selection;
+    const charBefore = editor.state.doc.textBetween(Math.max(0, from - 1), from);
+    if (charBefore === "@") {
+      editor
+        .chain()
+        .focus()
+        .deleteRange({ from: from - 1, to: from })
+        .run();
+    }
+
+    editor
+      .chain()
+      .focus()
+      .insertContent(
+        `<a href="#task-${task.id}" class="task-mention-chip">@${task.id} (${task.title})</a>&nbsp;`,
+      )
+      .run();
+
+    setIsTaskPickerOpen(false);
+    setTaskSearch("");
+  };
 
   const rawText = editor.getText();
   const wordCount = rawText.trim() ? rawText.trim().split(/\s+/).length : 0;
@@ -220,6 +352,149 @@ export function WysiwygEditor({
             </button>
           </div>
 
+          {/* Links & Mentions */}
+          <div className="flex items-center gap-0.5 px-1 border-r border-zinc-200 dark:border-zinc-800">
+            {/* Link Button */}
+            <button
+              type="button"
+              onClick={handleSetLink}
+              title={editor.isActive("link") ? "Ubah URL Tautan" : "Sisipkan Tautan Web"}
+              aria-label="Tautan"
+              className={cn(
+                "rounded-md p-1.5 text-zinc-600 transition hover:bg-zinc-200/70 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+                editor.isActive("link") &&
+                  "bg-violet-100 font-bold text-violet-700 dark:bg-violet-950/60 dark:text-violet-300",
+              )}
+            >
+              <LinkIcon size={16} />
+            </button>
+
+            {editor.isActive("link") && (
+              <button
+                type="button"
+                onClick={handleUnsetLink}
+                title="Hapus Tautan"
+                aria-label="Hapus Tautan"
+                className="rounded-md p-1.5 text-rose-500 transition hover:bg-rose-100 dark:hover:bg-rose-950/60"
+              >
+                <Unlink size={16} />
+              </button>
+            )}
+
+            {/* Task Mention Popover Button */}
+            <div className="relative" ref={taskPickerRef}>
+              <button
+                type="button"
+                onClick={() => setIsTaskPickerOpen((prev) => !prev)}
+                title="Sebutkan / Mention Task (@)"
+                aria-label="Mention Task"
+                className={cn(
+                  "flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-200/70 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+                  isTaskPickerOpen &&
+                    "bg-violet-100 font-bold text-violet-700 dark:bg-violet-950/60 dark:text-violet-300",
+                )}
+              >
+                <AtSign size={15} className="text-violet-600 dark:text-violet-400" />
+                <span className="hidden sm:inline">Mention Task</span>
+              </button>
+
+              {/* Task Picker Dropdown */}
+              {isTaskPickerOpen && (
+                <div className="absolute left-0 top-full z-50 mt-1.5 w-72 sm:w-80 rounded-xl border border-zinc-200 bg-white p-2.5 shadow-xl dark:border-zinc-800 dark:bg-zinc-900 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="mb-2 flex items-center justify-between border-b border-zinc-100 pb-2 dark:border-zinc-800">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+                      <AtSign size={13} className="text-violet-600" />
+                      <span>Sebutkan Task</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsTaskPickerOpen(false)}
+                      className="rounded p-0.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+
+                  {/* Search Bar */}
+                  <div className="relative mb-2">
+                    <Search
+                      size={13}
+                      className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400"
+                    />
+                    <input
+                      ref={taskSearchInputRef}
+                      type="text"
+                      placeholder="Cari judul, ID task..."
+                      value={taskSearch}
+                      onChange={(e) => setTaskSearch(e.target.value)}
+                      className="w-full rounded-lg border border-zinc-200 bg-zinc-50 py-1.5 pl-8 pr-2 text-xs placeholder:text-zinc-400 focus:border-violet-500 focus:bg-white focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                    />
+                  </div>
+
+                  {/* Task list */}
+                  <div className="max-h-52 overflow-y-auto space-y-1">
+                    {filteredTasks.length === 0 ? (
+                      <div className="py-4 text-center text-xs text-zinc-400">
+                        Tidak ada task ditemukan
+                      </div>
+                    ) : (
+                      filteredTasks.map((t) => {
+                        const proj = projectList.find((p) => p.id === t.projectId);
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => handleSelectTask(t)}
+                            className="flex w-full items-start justify-between gap-2 rounded-lg p-2 text-left transition hover:bg-violet-50 dark:hover:bg-violet-950/40 group"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono text-[10px] font-semibold text-violet-600 dark:text-violet-400">
+                                  @{t.id}
+                                </span>
+                                {proj && (
+                                  <span className="truncate text-[10px] text-zinc-400">
+                                    · {proj.name}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="truncate text-xs font-medium text-zinc-800 group-hover:text-violet-700 dark:text-zinc-200 dark:group-hover:text-violet-300">
+                                {t.title}
+                              </p>
+                            </div>
+
+                            <span
+                              className={cn(
+                                "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium capitalize",
+                                t.status === "done" &&
+                                  "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+                                t.status === "progress" &&
+                                  "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
+                                t.status === "review" &&
+                                  "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300",
+                                t.status === "todo" &&
+                                  "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
+                              )}
+                            >
+                              {t.status}
+                            </span>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  <div className="mt-2 border-t border-zinc-100 pt-2 text-[10px] text-zinc-400 dark:border-zinc-800 flex items-center justify-between">
+                    <span>Ketik @ di editor untuk memicu mention</span>
+                    <span className="flex items-center gap-0.5 text-violet-600 dark:text-violet-400 font-medium">
+                      <CheckCircle2 size={11} /> Klik task untuk sisipkan
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Lists & Quotes */}
           <div className="flex items-center gap-0.5 px-1 border-r border-zinc-200 dark:border-zinc-800">
             <button
@@ -335,7 +610,7 @@ export function WysiwygEditor({
           <span>·</span>
           <span>{charCount} karakter</span>
         </span>
-        <span className="text-[10px]">WYSIWYG Rich Text</span>
+        <span className="text-[10px]">WYSIWYG · Link & @Mention</span>
       </div>
     </div>
   );

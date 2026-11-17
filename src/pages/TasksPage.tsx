@@ -110,12 +110,7 @@ export function TasksPage() {
                     ? "Hanya task milik Anda atau yang ada di project Anda yang ditampilkan di sini."
                     : "Tambahkan task baru untuk memulai pekerjaan pada project ini."}
                 </p>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="mt-4"
-                  onClick={() => setIsCreateOpen(true)}
-                >
+                <Button variant="secondary" className="mt-4" onClick={() => setIsCreateOpen(true)}>
                   <Plus size={13} /> Buat task baru
                 </Button>
               </div>
