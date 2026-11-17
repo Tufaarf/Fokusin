@@ -41,7 +41,7 @@ function getCandidateBaseUrls(): string[] {
   }
 
   // 4. Configured environment URL
-  const envUrl = import.meta.env.VITE_API_URL;
+  const envUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
   if (envUrl && envUrl !== "/api" && !candidates.includes(envUrl)) {
     candidates.push(envUrl);
   }
