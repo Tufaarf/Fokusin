@@ -16,6 +16,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { Button, cn, inputClass, Modal } from "../components/ui";
 import { realtimeSocket } from "../services/echo";
+import { toast } from "../services/notifications";
 import { resolveChatDisplayName, useAppStore } from "../store";
 
 export function MessagesPage() {
@@ -486,6 +487,7 @@ export function MessagesPage() {
               disabled={!email.includes("@")}
               onClick={() => {
                 addFriend(email);
+                toast.success(`Percakapan dengan ${email} telah dibuat.`);
                 setFriendOpen(false);
                 setEmail("");
               }}

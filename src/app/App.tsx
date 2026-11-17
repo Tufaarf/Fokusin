@@ -1,5 +1,7 @@
 import { useEffect } from "react";
 import { RouterProvider } from "react-router";
+import { GlobalDialogContainer } from "../components/GlobalDialogContainer";
+import { NotificationToastContainer } from "../components/NotificationToast";
 import { realtimeSocket } from "../services/echo";
 import { useAppStore } from "../store";
 import { router } from "./routes";
@@ -31,5 +33,11 @@ export default function App() {
     }
   }, [currentUser, syncWithBackend, syncChats]);
 
-  return <RouterProvider router={router} />;
+  return (
+    <>
+      <RouterProvider router={router} />
+      <NotificationToastContainer />
+      <GlobalDialogContainer />
+    </>
+  );
 }

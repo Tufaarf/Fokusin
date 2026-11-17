@@ -3,6 +3,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router";
 import { Button, inputClass } from "../components/ui";
+import { toast } from "../services/notifications";
 import { useAppStore } from "../store";
 
 type AuthMode = "login" | "register";
@@ -32,15 +33,21 @@ function AuthPage({ mode }: { mode: AuthMode }) {
     event.preventDefault();
     setError("");
     if (isRegister && name.trim().length < 2) {
-      setError("Nama harus terdiri dari minimal 2 karakter.");
+      const msg = "Nama harus terdiri dari minimal 2 karakter.";
+      setError(msg);
+      toast.error(msg, "Validasi Gagal");
       return;
     }
     if (!email.includes("@")) {
-      setError("Masukkan alamat email yang valid.");
+      const msg = "Masukkan alamat email yang valid.";
+      setError(msg);
+      toast.error(msg, "Validasi Gagal");
       return;
     }
     if (password.length < 6) {
-      setError("Password harus terdiri dari minimal 6 karakter.");
+      const msg = "Password harus terdiri dari minimal 6 karakter.";
+      setError(msg);
+      toast.error(msg, "Validasi Gagal");
       return;
     }
 
@@ -48,8 +55,10 @@ function AuthPage({ mode }: { mode: AuthMode }) {
       setLoading(true);
       if (isRegister) {
         await register(name.trim(), email.trim(), password);
+        toast.success(`Selamat datang di Fokusin, ${name.trim()}!`, "Pendaftaran Berhasil");
       } else {
         await login(email.trim(), password);
+        toast.success("Berhasil masuk ke Fokusin.", "Masuk Berhasil");
       }
       navigate(isRegister ? "/" : destination, { replace: true });
     } catch (err: any) {
@@ -61,6 +70,7 @@ function AuthPage({ mode }: { mode: AuthMode }) {
         err?.message ||
         "Gagal autentikasi. Pastikan akun terdaftar di database dan password benar.";
       setError(msg);
+      toast.error(msg, isRegister ? "Pendaftaran Gagal" : "Gagal Masuk");
     } finally {
       setLoading(false);
     }

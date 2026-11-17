@@ -3,6 +3,8 @@ import { useState } from "react";
 import { useAppStore } from "../store";
 import type { Task } from "../types";
 import { Badge, Button, Modal } from "./ui";
+import { confirmDialog } from "../services/dialog";
+import { toast } from "../services/notifications";
 
 export function TaskModal({ task, onClose }: { task: Task; onClose: () => void }) {
   const updateTask = useAppStore((state) => state.updateTask);
@@ -10,7 +12,6 @@ export function TaskModal({ task, onClose }: { task: Task; onClose: () => void }
   const project = useAppStore((state) => state.projects.find((item) => item.id === task.projectId));
   const [description, setDescription] = useState(task.description);
   const [attachments, setAttachments] = useState(task.attachments ?? []);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const upload = (files: FileList | null) => {
     if (!files) return;
     const next = Array.from(files)
@@ -24,15 +25,22 @@ export function TaskModal({ task, onClose }: { task: Task; onClose: () => void }
   };
   const save = () => {
     updateTask(task.id, description, attachments);
+    toast.success("Perubahan task berhasil disimpan.");
     onClose();
   };
-  const handleDelete = () => {
-    if (!confirmDelete) {
-      setConfirmDelete(true);
-      return;
+  const handleDelete = async () => {
+    const confirmed = await confirmDialog({
+      title: "Hapus Task",
+      message: `Apakah Anda yakin ingin menghapus task "${task.title}"? Tindakan ini tidak dapat dibatalkan.`,
+      confirmText: "Ya, Hapus",
+      cancelText: "Batal",
+      variant: "danger",
+    });
+    if (confirmed) {
+      await deleteTask(task.id);
+      toast.success("Task berhasil dihapus.");
+      onClose();
     }
-    deleteTask(task.id);
-    onClose();
   };
   return (
     <Modal title={`${task.id} · Detail task`} onClose={onClose} wide>
@@ -137,33 +145,13 @@ export function TaskModal({ task, onClose }: { task: Task; onClose: () => void }
       </div>
       <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          {confirmDelete ? (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-red-600 dark:text-red-400">Yakin hapus task ini?</span>
-              <button
-                type="button"
-                onClick={handleDelete}
-                className="rounded bg-red-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-red-700"
-              >
-                Ya, Hapus
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(false)}
-                className="text-xs text-zinc-500 hover:underline"
-              >
-                Batal
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={handleDelete}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-400 hover:text-red-600 transition"
-            >
-              <Trash2 size={13} /> Hapus task
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={handleDelete}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-transparent px-2.5 py-1.5 text-xs font-medium text-zinc-400 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 dark:hover:border-rose-900/50 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
+          >
+            <Trash2 size={13} /> Hapus task
+          </button>
         </div>
         <div className="flex flex-col-reverse gap-2 sm:flex-row">
           <Button onClick={onClose} className="w-full sm:w-auto">

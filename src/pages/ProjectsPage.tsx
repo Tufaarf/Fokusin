@@ -2,6 +2,7 @@ import { ArrowUpRight, Plus, Users } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
 import { Button, Card, inputClass, Modal } from "../components/ui";
+import { toast } from "../services/notifications";
 import { useAppStore } from "../store";
 
 export function ProjectsPage() {
@@ -12,6 +13,7 @@ export function ProjectsPage() {
   const submit = () => {
     if (!name.trim()) return;
     addProject(name.trim(), emails.filter(Boolean));
+    toast.success(`Project "${name.trim()}" berhasil dibuat.`);
     setName("");
     setEmails([""]);
     setOpen(false);

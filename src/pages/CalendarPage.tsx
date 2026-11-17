@@ -2,6 +2,7 @@ import { BellRing, CalendarPlus, Clock3, Video } from "lucide-react";
 import { useState } from "react";
 import { CalendarGrid } from "../components/CalendarGrid";
 import { Badge, Button, Card, inputClass, Modal } from "../components/ui";
+import { toast } from "../services/notifications";
 import { useAppStore } from "../store";
 
 const today = new Date().toISOString().slice(0, 10);
@@ -159,6 +160,7 @@ export function CalendarPage() {
                 className="w-full sm:w-auto"
                 onClick={() => {
                   addEvent(form);
+                  toast.success(`Event "${form.title}" berhasil ditambahkan.`);
                   setOpen(false);
                 }}
               >

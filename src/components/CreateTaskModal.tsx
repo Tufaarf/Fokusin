@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import { useAppStore } from "../store";
 import type { Task, TaskStatus } from "../types";
 import { Button, Modal, cn, inputClass } from "./ui";
+import { toast } from "../services/notifications";
 
 interface CreateTaskModalProps {
   projectId?: string;
@@ -93,9 +94,11 @@ export function CreateTaskModal({
       if (onCreated) {
         onCreated(created);
       }
+      toast.success(`Task "${title.trim()}" berhasil dibuat.`);
       onClose();
     } catch (err) {
       console.error("Gagal menambahkan task:", err);
+      toast.error("Gagal menambahkan task. Silakan coba lagi.", "Terjadi Kesalahan");
     } finally {
       setIsSubmitting(false);
     }

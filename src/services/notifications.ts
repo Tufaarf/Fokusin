@@ -1,7 +1,14 @@
 import { create } from "zustand";
 import { api } from "./api";
 
-export type NotificationType = "message" | "reminder" | "task" | "info" | "success";
+export type NotificationType =
+  | "message"
+  | "reminder"
+  | "task"
+  | "info"
+  | "success"
+  | "error"
+  | "warning";
 
 export interface ToastItem {
   id: string;
@@ -13,9 +20,11 @@ export interface ToastItem {
   roomId?: string;
   timestamp: Date;
   duration?: number; // ms, default 5500
+  badge?: string;
   actionLabel?: string;
   actionUrl?: string;
   onClick?: () => void;
+  saveToHistory?: boolean;
   metadata?: Record<string, any>;
 }
 
@@ -31,7 +40,9 @@ export interface StoredNotification {
 }
 
 // Gentle Web Audio API synthesizer for notification sounds
-export function playNotificationSound(type: "message" | "reminder" | "default" = "default") {
+export function playNotificationSound(
+  type: "message" | "reminder" | "success" | "error" | "warning" | "default" = "default",
+) {
   try {
     const AudioContextClass =
       window.AudioContext ||
@@ -71,6 +82,53 @@ export function playNotificationSound(type: "message" | "reminder" | "default" =
       gain2.connect(masterGain);
       osc2.start(now + 0.12);
       osc2.stop(now + 0.55);
+    } else if (type === "success") {
+      // Crisp pleasant ascending triad (C5 -> E5 -> G5)
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = "sine";
+      osc1.frequency.setValueAtTime(523.25, now);
+      gain1.gain.setValueAtTime(0.12, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+      osc1.connect(gain1);
+      gain1.connect(masterGain);
+      osc1.start(now);
+      osc1.stop(now + 0.2);
+
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = "sine";
+      osc2.frequency.setValueAtTime(659.25, now + 0.08);
+      gain2.gain.setValueAtTime(0.13, now + 0.08);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+      osc2.connect(gain2);
+      gain2.connect(masterGain);
+      osc2.start(now + 0.08);
+      osc2.stop(now + 0.28);
+
+      const osc3 = ctx.createOscillator();
+      const gain3 = ctx.createGain();
+      osc3.type = "sine";
+      osc3.frequency.setValueAtTime(783.99, now + 0.16);
+      gain3.gain.setValueAtTime(0.15, now + 0.16);
+      gain3.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+      osc3.connect(gain3);
+      gain3.connect(masterGain);
+      osc3.start(now + 0.16);
+      osc3.stop(now + 0.4);
+    } else if (type === "error") {
+      // Discrete gentle low warning frequency (non-harsh)
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(260, now);
+      osc.frequency.exponentialRampToValueAtTime(190, now + 0.24);
+      gain.gain.setValueAtTime(0.13, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+      osc.connect(gain);
+      gain.connect(masterGain);
+      osc.start(now);
+      osc.stop(now + 0.24);
     } else {
       // Pleasant Slack/Apple style two-tone chime for messages (C5 -> G5)
       const osc1 = ctx.createOscillator();
@@ -178,7 +236,15 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
     // Play sound if enabled
     if (get().soundEnabled) {
-      playNotificationSound(item.type === "reminder" ? "reminder" : "message");
+      playNotificationSound(
+        item.type === "reminder"
+          ? "reminder"
+          : item.type === "success"
+          ? "success"
+          : item.type === "error"
+          ? "error"
+          : "message",
+      );
     }
 
     // Add to toasts (keep max 4 active simultaneously to prevent clutter)
@@ -186,12 +252,24 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       const current = state.toasts.filter((t) => t.id !== id);
       const nextToasts = [newToast, ...current].slice(0, 4);
 
+      // Only record messages, reminders, or items explicitly requesting history
+      const shouldSave =
+        item.saveToHistory ?? (item.type === "message" || item.type === "reminder");
+      if (!shouldSave) {
+        return { toasts: nextToasts };
+      }
+
       // Also record into in-memory history
       const newHistoryItem: StoredNotification = {
         id,
         title: item.title,
         message: item.message,
-        type: item.type === "message" ? "CHAT_MESSAGE" : "EVENT_REMINDER_H3",
+        type:
+          item.type === "message"
+            ? "CHAT_MESSAGE"
+            : item.type === "reminder"
+            ? "EVENT_REMINDER_H3"
+            : item.type.toUpperCase(),
         data: {
           roomId: item.roomId,
           roomName: item.roomName,
@@ -330,3 +408,60 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     }
   },
 }));
+
+export type ToastOptions = Partial<Omit<ToastItem, "id" | "timestamp">>;
+
+export const toast = {
+  success: (message: string, title: string = "Berhasil", options?: ToastOptions) =>
+    useNotificationStore.getState().pushToast({
+      type: "success",
+      title,
+      message,
+      duration: 4500,
+      badge: "Berhasil",
+      ...options,
+    }),
+
+  error: (message: string, title: string = "Terjadi Kesalahan", options?: ToastOptions) =>
+    useNotificationStore.getState().pushToast({
+      type: "error",
+      title,
+      message,
+      duration: 5500,
+      badge: "Error",
+      ...options,
+    }),
+
+  warning: (message: string, title: string = "Peringatan", options?: ToastOptions) =>
+    useNotificationStore.getState().pushToast({
+      type: "warning",
+      title,
+      message,
+      duration: 5000,
+      badge: "Peringatan",
+      ...options,
+    }),
+
+  info: (message: string, title: string = "Informasi", options?: ToastOptions) =>
+    useNotificationStore.getState().pushToast({
+      type: "info",
+      title,
+      message,
+      duration: 4500,
+      badge: "Info",
+      ...options,
+    }),
+
+  custom: (item: Omit<ToastItem, "id" | "timestamp"> & { id?: string }) =>
+    useNotificationStore.getState().pushToast(item),
+
+  dismiss: (id: string) => useNotificationStore.getState().dismissToast(id),
+  clear: () => useNotificationStore.getState().clearAllToasts(),
+};
+
+// Safe fallback: redirect any native alert(...) in browser to custom toast
+if (typeof window !== "undefined") {
+  (window as any).alert = (message?: any) => {
+    toast.info(String(message ?? ""), "Notifikasi");
+  };
+}

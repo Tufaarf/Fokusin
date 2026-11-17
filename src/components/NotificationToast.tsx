@@ -1,4 +1,6 @@
 import {
+  AlertCircle,
+  AlertTriangle,
   BellRing,
   CalendarDays,
   CheckCircle2,
@@ -91,7 +93,34 @@ function ToastCard({ toast }: { toast: ToastItem }) {
           progressBg: "bg-emerald-500",
           tagBg:
             "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60",
-          badge: "Berhasil",
+          badge: toast.badge || "Berhasil",
+        };
+      case "error":
+        return {
+          icon: AlertCircle,
+          iconBg: "bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400",
+          progressBg: "bg-rose-500",
+          tagBg:
+            "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/60",
+          badge: toast.badge || "Gagal",
+        };
+      case "warning":
+        return {
+          icon: AlertTriangle,
+          iconBg: "bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400",
+          progressBg: "bg-amber-500",
+          tagBg:
+            "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/60",
+          badge: toast.badge || "Peringatan",
+        };
+      case "info":
+        return {
+          icon: Info,
+          iconBg: "bg-sky-100 text-sky-600 dark:bg-sky-950/60 dark:text-sky-400",
+          progressBg: "bg-sky-500",
+          tagBg:
+            "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/60",
+          badge: toast.badge || "Info",
         };
       default:
         return {
@@ -100,7 +129,7 @@ function ToastCard({ toast }: { toast: ToastItem }) {
           progressBg: "bg-zinc-400 dark:bg-zinc-500",
           tagBg:
             "bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700",
-          badge: "Info",
+          badge: toast.badge || "Info",
         };
     }
   };
@@ -154,19 +183,28 @@ function ToastCard({ toast }: { toast: ToastItem }) {
             <span className="text-[10px] text-zinc-400">· Baru saja</span>
           </div>
 
-          <h4 className="mt-1 truncate text-xs font-semibold text-zinc-900 dark:text-zinc-100">
-            {toast.title}
-          </h4>
+          {toast.title && toast.title !== toast.message && (
+            <h4 className="mt-1 truncate text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+              {toast.title}
+            </h4>
+          )}
 
-          <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-zinc-600 dark:text-zinc-300">
+          <p
+            className={cn(
+              "text-xs leading-relaxed text-zinc-600 dark:text-zinc-300",
+              toast.title && toast.title !== toast.message ? "mt-0.5 line-clamp-2" : "mt-1.5",
+            )}
+          >
             {toast.message}
           </p>
 
-          {/* Action indicator */}
-          <div className="mt-2 flex items-center gap-1 text-[11px] font-medium text-violet-600 transition group-hover:text-violet-700 dark:text-violet-400 dark:group-hover:text-violet-300">
-            <span>{toast.actionLabel || "Buka"}</span>
-            <ExternalLink size={12} className="transition-transform group-hover:translate-x-0.5" />
-          </div>
+          {/* Action indicator - only if explicitly provided */}
+          {toast.actionLabel && (
+            <div className="mt-2 flex items-center gap-1 text-[11px] font-medium text-violet-600 transition group-hover:text-violet-700 dark:text-violet-400 dark:group-hover:text-violet-300">
+              <span>{toast.actionLabel}</span>
+              <ExternalLink size={12} className="transition-transform group-hover:translate-x-0.5" />
+            </div>
+          )}
         </div>
 
         {/* Dismiss Button */}
@@ -202,7 +240,7 @@ export function NotificationToastContainer() {
   return (
     <div
       aria-live="polite"
-      className="pointer-events-none fixed top-3 right-3 left-3 z-50 flex flex-col items-end gap-2.5 sm:top-5 sm:right-5 sm:left-auto sm:w-96"
+      className="pointer-events-none fixed top-3 right-3 left-3 z-[60] flex flex-col items-end gap-2.5 sm:top-5 sm:right-5 sm:left-auto sm:w-96"
     >
       {toasts.map((toast) => (
         <div

@@ -30,6 +30,7 @@ import {
 import { useAppStore } from "../store";
 import type { Project, Task } from "../types";
 import { cn } from "./ui";
+import { promptDialog } from "../services/dialog";
 
 interface WysiwygEditorProps {
   content: string;
@@ -169,9 +170,17 @@ export function WysiwygEditor({
   }
 
   // Handle Link Insertion
-  const handleSetLink = () => {
+  const handleSetLink = async () => {
     const previousUrl = editor.getAttributes("link")?.href || "";
-    const url = window.prompt("Masukkan URL tautan web (contoh: https://google.com):", previousUrl);
+    const url = await promptDialog({
+      title: "Tambah Tautan Web",
+      message: "Masukkan URL tautan web (contoh: https://google.com):",
+      placeholder: "https://google.com",
+      defaultValue: previousUrl,
+      confirmText: "Simpan Tautan",
+      cancelText: "Batal",
+      inputType: "url",
+    });
     if (url === null) return;
 
     if (url.trim() === "") {

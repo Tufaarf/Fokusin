@@ -15,10 +15,11 @@ import {
 } from "lucide-react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useRealtimeNotifications } from "../hooks/useRealtimeNotifications";
+import { confirmDialog } from "../services/dialog";
+import { toast } from "../services/notifications";
 import { useAppStore } from "../store";
 import { filterUserTasks } from "../utils/taskFilter";
 import { NotificationPanel } from "./NotificationPanel";
-import { NotificationToastContainer } from "./NotificationToast";
 import { cn } from "./ui";
 
 const nav = [
@@ -72,9 +73,23 @@ export function AppShell() {
     nav.find((item) => item.to === location.pathname)?.label ??
     (location.pathname.startsWith("/projects/") ? "Project board" : "Workspace");
 
+  const handleLogout = async () => {
+    const confirmed = await confirmDialog({
+      title: "Keluar dari Akun",
+      message: "Apakah Anda yakin ingin keluar dari akun Fokusin?",
+      confirmText: "Keluar",
+      cancelText: "Batal",
+      variant: "warning",
+    });
+    if (confirmed) {
+      logout();
+      toast.info("Anda telah keluar dari akun.", "Sesi Berakhir");
+      navigate("/login", { replace: true });
+    }
+  };
+
   return (
     <div className="min-h-screen overflow-x-hidden bg-zinc-50 text-zinc-950 transition-colors dark:bg-zinc-950 dark:text-zinc-50">
-      <NotificationToastContainer />
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-zinc-200 bg-white transition-all dark:border-zinc-800 dark:bg-zinc-950 lg:flex",
@@ -188,10 +203,7 @@ export function AppShell() {
               </div>
             )}
             <button
-              onClick={() => {
-                logout();
-                navigate("/login", { replace: true });
-              }}
+              onClick={handleLogout}
               className={cn(
                 "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-900 dark:hover:text-zinc-200",
                 sidebarCollapsed && "hidden",
@@ -231,10 +243,7 @@ export function AppShell() {
               {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
             </button>
             <button
-              onClick={() => {
-                logout();
-                navigate("/login", { replace: true });
-              }}
+              onClick={handleLogout}
               className="rounded-lg border border-zinc-200 p-2 text-zinc-500 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900 lg:hidden"
               aria-label="Keluar dari Fokusin"
             >

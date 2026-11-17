@@ -27,6 +27,8 @@ import type { Note, Task } from "../types";
 import { cn } from "../components/ui";
 import { filterUserTasks } from "../utils/taskFilter";
 import { formatNoteContentForView, getMentionedTasks, stripHtml } from "../utils/noteUtils";
+import { confirmDialog } from "../services/dialog";
+import { toast } from "../services/notifications";
 
 export const NOTE_COLORS = [
   {
@@ -245,7 +247,7 @@ export function NotesPage() {
   // Save note
   const handleSave = async () => {
     if (!title.trim()) {
-      alert("Judul catatan wajib diisi.");
+      toast.error("Judul catatan wajib diisi.", "Validasi Catatan");
       return;
     }
 
@@ -259,6 +261,7 @@ export function NotesPage() {
           isPinned,
           tags,
         });
+        toast.success("Catatan berhasil diperbarui.");
         setSaveSuccess(true);
         setTimeout(() => {
           setIsNewNoteOpen(false);
@@ -274,6 +277,7 @@ export function NotesPage() {
           isPinned,
           tags,
         });
+        toast.success("Catatan baru berhasil disimpan.");
         setSaveSuccess(true);
         setTimeout(() => {
           setIsNewNoteOpen(false);
@@ -286,7 +290,7 @@ export function NotesPage() {
       }
     } catch (err) {
       console.error(err);
-      alert("Gagal menyimpan catatan.");
+      toast.error("Gagal menyimpan catatan. Silakan periksa koneksi Anda.", "Gagal Menyimpan");
     } finally {
       setIsSaving(false);
     }
@@ -294,14 +298,28 @@ export function NotesPage() {
 
   // Delete note
   const handleDelete = async (id: string | number) => {
-    if (window.confirm("Apakah Anda yakin ingin menghapus catatan ini?")) {
-      await deleteNote(id);
-      if (viewingNoteId === id) {
-        setViewingNoteId(null);
-      }
-      if (editingNote && editingNote.id === id) {
-        setIsNewNoteOpen(false);
-        setEditingNote(null);
+    const confirmed = await confirmDialog({
+      title: "Hapus Catatan",
+      message: "Apakah Anda yakin ingin menghapus catatan ini? Tindakan ini tidak dapat dibatalkan.",
+      confirmText: "Ya, Hapus",
+      cancelText: "Batal",
+      variant: "danger",
+    });
+
+    if (confirmed) {
+      try {
+        await deleteNote(id);
+        toast.success("Catatan berhasil dihapus.");
+        if (viewingNoteId === id) {
+          setViewingNoteId(null);
+        }
+        if (editingNote && editingNote.id === id) {
+          setIsNewNoteOpen(false);
+          setEditingNote(null);
+        }
+      } catch (err) {
+        console.error(err);
+        toast.error("Gagal menghapus catatan.");
       }
     }
   };
@@ -316,6 +334,7 @@ export function NotesPage() {
     a.download = `${note.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.txt`;
     a.click();
     URL.revokeObjectURL(url);
+    toast.success(`Catatan "${note.title}" berhasil diunduh sebagai berkas teks.`);
   };
 
   return (
@@ -770,7 +789,7 @@ function ViewNoteModal({
       if (matched) {
         onSelectTask(matched);
       } else {
-        alert(`Task "${id}" tidak ditemukan atau telah dihapus.`);
+        toast.warning(`Task "${id}" tidak ditemukan atau telah dihapus.`, "Task Tidak Ditemukan");
       }
       return;
     }

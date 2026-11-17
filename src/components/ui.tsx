@@ -1,11 +1,12 @@
 import { X } from "lucide-react";
-import type { ButtonHTMLAttributes, PropsWithChildren, ReactNode } from "react";
+import type { ButtonHTMLAttributes, PropsWithChildren, ReactNode, Ref } from "react";
 
 export const cn = (...classes: (string | false | null | undefined)[]) =>
   classes.filter(Boolean).join(" ");
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "secondary" | "primary";
+  ref?: Ref<HTMLButtonElement>;
 };
 
 export function Button({ className, variant = "secondary", ...props }: ButtonProps) {
