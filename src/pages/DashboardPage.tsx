@@ -53,7 +53,7 @@ export function DashboardPage() {
       <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
         <div>
           <p className="mb-1 text-xs font-medium text-violet-600 dark:text-violet-400">
-            MONDAY WORKSPACE
+            FOKUSIN BY TUFAARF
           </p>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
             Selamat datang kembali.
@@ -240,10 +240,10 @@ export function DashboardPage() {
                     {chat.type === "group"
                       ? "GR"
                       : displayName
-                          .split(" ")
-                          .map((part) => part[0])
-                          .join("")
-                          .slice(0, 2)}
+                        .split(" ")
+                        .map((part) => part[0])
+                        .join("")
+                        .slice(0, 2)}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium">{displayName}</p>
