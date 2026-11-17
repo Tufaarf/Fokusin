@@ -56,6 +56,62 @@ class Task extends Model
     }
 
     /**
+     * Scope query to tasks accessible by a user:
+     * - Superadmin sees all tasks
+     * - Regular user only sees tasks assigned to them OR tasks in projects they created/are members of
+     */
+    public function scopeForUser($query, ?User $user)
+    {
+        if (!$user) {
+            return $query;
+        }
+
+        if ($user->isSuperAdmin()) {
+            return $query;
+        }
+
+        return $query->where(function ($sub) use ($user) {
+            $sub->where('assignee_id', $user->id)
+                ->orWhere('assignee_name', $user->name)
+                ->orWhereHas('project', function ($projQ) use ($user) {
+                    $projQ->where('created_by', $user->id)
+                          ->orWhereHas('members', fn($m) => $m->where('users.id', $user->id));
+                });
+        });
+    }
+
+    /**
+     * Check if a user has access to this task
+     */
+    public function canAccess(?User $user): bool
+    {
+        if (!$user) {
+            return false;
+        }
+
+        if ($user->isSuperAdmin()) {
+            return true;
+        }
+
+        if ($this->assignee_id === $user->id) {
+            return true;
+        }
+
+        if ($this->assignee_name && $this->assignee_name === $user->name) {
+            return true;
+        }
+
+        if ($this->project) {
+            if ($this->project->created_by === $user->id) {
+                return true;
+            }
+            return $this->project->members()->where('users.id', $user->id)->exists();
+        }
+
+        return false;
+    }
+
+    /**
      * Compute Companion Urgency Score
      * Formula combines Priority Weight and Hours to Due Date
      */

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Project;
 use App\Models\Task;
 use App\Models\TaskAttachment;
 use App\Models\User;
@@ -16,12 +17,15 @@ class TaskController extends Controller
 {
     /**
      * List tasks (optional filter by project_id)
+     * Scoped to tasks belonging to the user or in projects the user has access to.
      */
     public function index(Request $request): JsonResponse
     {
         $projectId = $request->query('project_id');
+        $user = $request->user();
 
         $tasks = Task::with(['project', 'assignee', 'attachments'])
+            ->forUser($user)
             ->when($projectId, fn($q) => $q->where('project_id', $projectId))
             ->orderBy('due_date', 'asc')
             ->get();
@@ -71,6 +75,19 @@ class TaskController extends Controller
         $projectId = $request->project_id ?? $request->projectId;
         if (!$projectId) {
             return response()->json(['message' => 'Project ID diperlukan'], 422);
+        }
+
+        $project = Project::find($projectId);
+        if (!$project) {
+            return response()->json(['message' => 'Project tidak ditemukan'], 404);
+        }
+
+        $user = $request->user();
+        if ($user && !$user->isSuperAdmin()) {
+            $hasAccess = $project->created_by === $user->id || $project->members()->where('users.id', $user->id)->exists();
+            if (!$hasAccess) {
+                return response()->json(['message' => 'Anda tidak memiliki akses ke project ini'], 403);
+            }
         }
 
         // Generate TASK-ID if not provided
@@ -147,7 +164,11 @@ class TaskController extends Controller
             'status' => 'required|string|in:todo,progress,review,done,TODO,IN_PROGRESS,REVIEW,DONE',
         ]);
 
-        $task = Task::findOrFail($id);
+        $task = Task::with('project')->findOrFail($id);
+        if (!$task->canAccess($request->user())) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
+        }
+
         $task->status = strtolower($request->status);
         $task->save();
 
@@ -170,7 +191,10 @@ class TaskController extends Controller
             'assignee' => 'nullable|string',
         ]);
 
-        $task = Task::findOrFail($id);
+        $task = Task::with('project')->findOrFail($id);
+        if (!$task->canAccess($request->user())) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
+        }
 
         if ($request->has('description')) {
             $task->description = $request->description;
@@ -199,9 +223,13 @@ class TaskController extends Controller
     /**
      * Delete a task
      */
-    public function destroy(string $id): JsonResponse
+    public function destroy(Request $request, string $id): JsonResponse
     {
-        $task = Task::findOrFail($id);
+        $task = Task::with('project')->findOrFail($id);
+        if (!$task->canAccess($request->user())) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
+        }
+
         $task->delete();
 
         return response()->json([
@@ -216,7 +244,10 @@ class TaskController extends Controller
      */
     public function uploadMedia(Request $request, string $taskId): JsonResponse
     {
-        $task = Task::findOrFail($taskId);
+        $task = Task::with('project')->findOrFail($taskId);
+        if (!$task->canAccess($request->user())) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
+        }
 
         $request->validate([
             'files' => 'required|array',
@@ -282,7 +313,10 @@ class TaskController extends Controller
             'content_type' => 'required|string',
         ]);
 
-        $task = Task::findOrFail($taskId);
+        $task = Task::with('project')->findOrFail($taskId);
+        if (!$task->canAccess($request->user())) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
+        }
         $filename = Str::uuid() . '-' . $request->filename;
         $path = "tasks/{$taskId}/{$filename}";
 

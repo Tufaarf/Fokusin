@@ -6,11 +6,12 @@ import {
   MessageSquare,
   Sparkles,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router";
 import { CalendarGrid } from "../components/CalendarGrid";
 import { Badge, Card } from "../components/ui";
 import { resolveChatDisplayName, useAppStore } from "../store";
+import { filterUserTasks } from "../utils/taskFilter";
 
 const today = new Date().toISOString().slice(0, 10);
 const after = (days: number) => {
@@ -22,11 +23,26 @@ const after = (days: number) => {
 export function DashboardPage() {
   const { tasks, events, chats, projects, currentUser } = useAppStore();
   const [range, setRange] = useState<[string, string]>([today, after(7)]);
-  const urgent = [...tasks]
-    .filter((task) => task.status !== "done" && task.priority === "High")
-    .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
-    .slice(0, 4);
-  const unfinished = tasks.filter((task) => task.status !== "done").slice(0, 5);
+
+  const userTasks = useMemo(
+    () => filterUserTasks(tasks, projects, currentUser),
+    [tasks, projects, currentUser],
+  );
+
+  const urgent = useMemo(
+    () =>
+      [...userTasks]
+        .filter((task) => task.status !== "done" && task.priority === "High")
+        .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+        .slice(0, 4),
+    [userTasks],
+  );
+
+  const unfinished = useMemo(
+    () => userTasks.filter((task) => task.status !== "done").slice(0, 5),
+    [userTasks],
+  );
+
   const unreplied = chats.filter((chat) => chat.unread > 0);
   const filteredEvents = events
     .filter((event) => event.date >= range[0] && event.date <= range[1])
@@ -47,7 +63,7 @@ export function DashboardPage() {
           </p>
         </div>
         <p className="text-xs text-zinc-500">
-          {tasks.filter((task) => task.status === "done").length} task selesai minggu ini
+          {userTasks.filter((task) => task.status === "done").length} task selesai minggu ini
         </p>
       </div>
 
@@ -62,32 +78,41 @@ export function DashboardPage() {
             </p>
           </div>
           <div className="divide-y divide-zinc-100 dark:divide-zinc-900">
-            {urgent.map((task, index) => (
-              <Link
-                to={`/projects/${task.projectId}?taskId=${task.id}`}
-                key={task.id}
-                className="group flex items-center gap-3 p-4 hover:bg-zinc-50 dark:hover:bg-zinc-900/50"
-              >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-zinc-200 text-[11px] font-semibold dark:border-zinc-800">
-                  0{index + 1}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{task.title}</p>
-                  <p className="mt-1 text-[11px] text-zinc-500">
-                    {projects.find((item) => item.id === task.projectId)?.name}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[11px] font-medium">
-                    {new Date(task.dueDate).toLocaleDateString("id-ID", {
-                      day: "numeric",
-                      month: "short",
-                    })}
-                  </p>
-                  <p className="mt-1 text-[10px] text-zinc-400">{task.assignee}</p>
-                </div>
-              </Link>
-            ))}
+            {urgent.length === 0 ? (
+              <div className="py-8 text-center text-xs text-zinc-400">
+                Tidak ada tugas prioritas mendesak saat ini.
+              </div>
+            ) : (
+              urgent.map((task, index) => {
+                const hasProject = task.projectId && projects.some((p) => p.id === task.projectId);
+                return (
+                  <Link
+                    to={hasProject ? `/projects/${task.projectId}?taskId=${task.id}` : "/tasks"}
+                    key={task.id}
+                    className="group flex items-center gap-3 p-4 hover:bg-zinc-50 dark:hover:bg-zinc-900/50"
+                  >
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-zinc-200 text-[11px] font-semibold dark:border-zinc-800">
+                      0{index + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{task.title}</p>
+                      <p className="mt-1 text-[11px] text-zinc-500">
+                        {projects.find((item) => item.id === task.projectId)?.name || "Task Saya"}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[11px] font-medium">
+                        {new Date(task.dueDate).toLocaleDateString("id-ID", {
+                          day: "numeric",
+                          month: "short",
+                        })}
+                      </p>
+                      <p className="mt-1 text-[10px] text-zinc-400">{task.assignee}</p>
+                    </div>
+                  </Link>
+                );
+              })
+            )}
           </div>
         </Card>
         <Card className="p-3 sm:p-5">
@@ -161,24 +186,33 @@ export function DashboardPage() {
             </Link>
           </div>
           <div className="divide-y divide-zinc-100 dark:divide-zinc-900">
-            {unfinished.map((task) => (
-              <Link
-                to={`/projects/${task.projectId}?taskId=${task.id}`}
-                key={task.id}
-                className="flex items-center gap-3 px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-900/50"
-              >
-                <span className="h-4 w-4 rounded-full border border-zinc-300 dark:border-zinc-700" />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-medium">{task.title}</p>
-                  <p className="mt-0.5 text-[10px] text-zinc-500">
-                    {task.id} · {task.assignee}
-                  </p>
-                </div>
-                <Badge className="hidden shrink-0 sm:inline-flex">
-                  {task.status === "progress" ? "On Progress" : task.status}
-                </Badge>
-              </Link>
-            ))}
+            {unfinished.length === 0 ? (
+              <div className="py-8 text-center text-xs text-zinc-400">
+                Semua task telah selesai!
+              </div>
+            ) : (
+              unfinished.map((task) => {
+                const hasProject = task.projectId && projects.some((p) => p.id === task.projectId);
+                return (
+                  <Link
+                    to={hasProject ? `/projects/${task.projectId}?taskId=${task.id}` : "/tasks"}
+                    key={task.id}
+                    className="flex items-center gap-3 px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-900/50"
+                  >
+                    <span className="h-4 w-4 rounded-full border border-zinc-300 dark:border-zinc-700" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-medium">{task.title}</p>
+                      <p className="mt-0.5 text-[10px] text-zinc-500">
+                        {task.id} · {task.assignee}
+                      </p>
+                    </div>
+                    <Badge className="hidden shrink-0 sm:inline-flex">
+                      {task.status === "progress" ? "On Progress" : task.status}
+                    </Badge>
+                  </Link>
+                );
+              })
+            )}
           </div>
         </Card>
         <Card>

@@ -126,18 +126,16 @@ export const resolveChatDisplayName = (
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
-  projects: initialProjects,
-  tasks: initialTasks,
-  events: initialEvents,
+  projects: storedUser() ? [] : initialProjects,
+  tasks: storedUser() ? [] : initialTasks,
+  events: storedUser() ? [] : initialEvents,
   chats: (() => {
     const user = storedUser();
-    if (user?.role === "superadmin" || user?.is_superadmin) return [];
-    return initialChats.map((c) => ({
-      ...c,
-      name: resolveChatDisplayName(c, user),
-    }));
+    if (!user) return initialChats;
+    if (user.role === "superadmin" || user.is_superadmin) return [];
+    return [];
   })(),
-  notes: initialNotes,
+  notes: storedUser() ? [] : initialNotes,
   sidebarCollapsed: false,
   theme: initialTheme(),
   currentUser: storedUser(),
@@ -677,7 +675,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       is_superadmin: isSuper,
     };
     window.localStorage.setItem("fokusin-user", JSON.stringify(user));
-    set({ currentUser: user });
+    set({
+      currentUser: user,
+      projects: [],
+      tasks: [],
+      events: [],
+      chats: [],
+      notes: [],
+    });
     await get().syncWithBackend();
   },
 
@@ -700,7 +705,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       is_superadmin: isSuper,
     };
     window.localStorage.setItem("fokusin-user", JSON.stringify(user));
-    set({ currentUser: user });
+    set({
+      currentUser: user,
+      projects: [],
+      tasks: [],
+      events: [],
+      chats: [],
+      notes: [],
+    });
     await get().syncWithBackend();
   },
 
@@ -712,7 +724,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     } finally {
       window.localStorage.removeItem("fokusin-user");
       window.localStorage.removeItem("fokusin_token");
-      set({ currentUser: null });
+      set({
+        currentUser: null,
+        projects: initialProjects,
+        tasks: initialTasks,
+        events: initialEvents,
+        chats: initialChats,
+        notes: initialNotes,
+      });
     }
   },
 }));

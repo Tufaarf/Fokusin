@@ -56,6 +56,7 @@ class DashboardController extends Controller
 
         // 2. Daftar task yang belum selesai (status != 'DONE' / 'done')
         $unfinishedTasks = Task::with(['project', 'assignee', 'attachments'])
+            ->forUser($currentUser)
             ->whereNotIn('status', ['done', 'DONE'])
             ->orderBy('due_date', 'asc')
             ->get()
@@ -84,6 +85,7 @@ class DashboardController extends Controller
         // Overdue (selisih jam < 0): urgency meningkat tajam (+500 + abs(jam)*3)
         // Mendekati deadline: score = (bobot * 10) - (jam * 1.5)
         $companionTasks = Task::with(['project', 'assignee', 'attachments'])
+            ->forUser($currentUser)
             ->whereNotIn('status', ['done', 'DONE'])
             ->select('tasks.*')
             ->selectRaw("
@@ -196,11 +198,14 @@ class DashboardController extends Controller
         $startOfWeek = Carbon::now()->startOfWeek();
         $endOfWeek = Carbon::now()->endOfWeek();
 
-        $doneThisWeek = Task::whereIn('status', ['done', 'DONE'])
+        $doneThisWeek = Task::forUser($currentUser)
+            ->whereIn('status', ['done', 'DONE'])
             ->whereBetween('updated_at', [$startOfWeek, $endOfWeek])
             ->count();
 
-        $totalActiveTasks = Task::whereNotIn('status', ['done', 'DONE'])->count();
+        $totalActiveTasks = Task::forUser($currentUser)
+            ->whereNotIn('status', ['done', 'DONE'])
+            ->count();
 
         return response()->json([
             'events' => $events,

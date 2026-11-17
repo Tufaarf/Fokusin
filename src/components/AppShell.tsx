@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
   CircleCheck,
@@ -16,6 +16,7 @@ import {
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useRealtimeNotifications } from "../hooks/useRealtimeNotifications";
 import { useAppStore } from "../store";
+import { filterUserTasks } from "../utils/taskFilter";
 import { NotificationPanel } from "./NotificationPanel";
 import { NotificationToastContainer } from "./NotificationToast";
 import { cn } from "./ui";
@@ -35,6 +36,7 @@ export function AppShell() {
     toggleSidebar,
     theme,
     toggleTheme,
+    projects,
     tasks,
     events,
     chats,
@@ -58,7 +60,11 @@ export function AppShell() {
     );
     return diff >= 1 && diff <= 3;
   });
-  const priorities = [...tasks]
+  const userTasks = useMemo(
+    () => filterUserTasks(tasks, projects, currentUser),
+    [tasks, projects, currentUser],
+  );
+  const priorities = [...userTasks]
     .filter((task) => task.status !== "done" && task.priority === "High")
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
     .slice(0, 3);
@@ -134,22 +140,25 @@ export function AppShell() {
               Task High Priority dengan deadline terdekat.
             </p>
             <div className="space-y-2">
-              {priorities.slice(0, 2).map((task) => (
-                <NavLink
-                  to={`/projects/${task.projectId}?taskId=${task.id}`}
-                  key={task.id}
-                  className="block rounded-md bg-white p-2 dark:bg-zinc-950"
-                >
-                  <p className="truncate text-xs font-medium">{task.title}</p>
-                  <p className="mt-1 text-[10px] text-zinc-500">
-                    {task.id} ·{" "}
-                    {new Date(task.dueDate).toLocaleDateString("id-ID", {
-                      day: "numeric",
-                      month: "short",
-                    })}
-                  </p>
-                </NavLink>
-              ))}
+              {priorities.slice(0, 2).map((task) => {
+                const hasProject = task.projectId && projects.some((p) => p.id === task.projectId);
+                return (
+                  <NavLink
+                    to={hasProject ? `/projects/${task.projectId}?taskId=${task.id}` : "/tasks"}
+                    key={task.id}
+                    className="block rounded-md bg-white p-2 dark:bg-zinc-950"
+                  >
+                    <p className="truncate text-xs font-medium">{task.title}</p>
+                    <p className="mt-1 text-[10px] text-zinc-500">
+                      {task.id} ·{" "}
+                      {new Date(task.dueDate).toLocaleDateString("id-ID", {
+                        day: "numeric",
+                        month: "short",
+                      })}
+                    </p>
+                  </NavLink>
+                );
+              })}
             </div>
           </div>
         )}
