@@ -213,40 +213,6 @@ function AuthPage({ mode }: { mode: AuthMode }) {
               {isRegister ? "Masuk" : "Daftar sekarang"}
             </Link>
           </p>
-          <div className="mt-8 rounded-xl border border-zinc-200 bg-zinc-50/80 p-3.5 dark:border-zinc-800 dark:bg-zinc-900/60">
-            <p className="text-[11px] font-semibold text-zinc-700 dark:text-zinc-300">
-              Pilih Akun Seeder Cepat:
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail("superadmin@acme.id");
-                  setPassword("password");
-                }}
-                className="inline-flex items-center gap-1.5 rounded-md border border-violet-200 bg-violet-50 px-2.5 py-1 font-medium text-violet-700 transition hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/70 dark:text-violet-300"
-              >
-                <span>🛡️</span>
-                <span>Super Admin (superadmin@acme.id)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail("you@acme.id");
-                  setPassword("password");
-                }}
-                className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-2.5 py-1 font-medium text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-              >
-                <span>👤</span>
-                <span>User Reguler (you@acme.id)</span>
-              </button>
-            </div>
-            <p className="mt-2 text-[10px] leading-relaxed text-zinc-400">
-              Password default: <span className="font-semibold text-zinc-500">password</span>. Akun
-              Super Admin dapat melihat semua data project & catatan seluruh user tanpa melihat isi
-              pesan chat (privasi chat terjaga).
-            </p>
-          </div>
         </div>
       </section>
     </main>
