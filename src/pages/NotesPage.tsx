@@ -395,14 +395,14 @@ export function NotesPage() {
 
         {/* Tags horizontal scroll */}
         {allTags.length > 0 && (
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-            <span className="flex items-center gap-1 text-zinc-400">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs scrollbar-none">
+            <span className="flex items-center gap-1 text-zinc-400 shrink-0">
               <Filter size={13} />
             </span>
             <button
               onClick={() => setSelectedTag(null)}
               className={cn(
-                "rounded-md px-2.5 py-1 text-xs font-medium transition",
+                "shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition",
                 selectedTag === null
                   ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-950"
                   : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700",
@@ -415,7 +415,7 @@ export function NotesPage() {
                 key={tag}
                 onClick={() => setSelectedTag(selectedTag === tag ? null : tag)}
                 className={cn(
-                  "rounded-md px-2.5 py-1 text-xs font-medium transition",
+                  "shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition",
                   selectedTag === tag
                     ? "bg-violet-600 text-white dark:bg-violet-500"
                     : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700",
@@ -528,33 +528,33 @@ export function NotesPage() {
 
       {/* EDIT / CREATE NOTE MODAL */}
       {isNewNoteOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm sm:p-6 animate-in fade-in duration-200">
-          <div className="flex max-h-[92vh] w-full max-w-4xl flex-col rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2 sm:p-6 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="flex max-h-[96vh] sm:max-h-[92vh] w-full max-w-4xl flex-col rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-950 overflow-hidden">
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
-              <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-950 dark:text-violet-300">
+            <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 sm:px-6 sm:py-4 dark:border-zinc-800">
+              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-950 dark:text-violet-300">
                   <StickyNote size={18} />
                 </div>
-                <div>
-                  <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 sm:text-base">
+                <div className="min-w-0">
+                  <h2 className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100 sm:text-base">
                     {editingNote ? "Edit Catatan" : "Catatan Baru"}
                   </h2>
-                  <p className="text-[11px] text-zinc-500">
+                  <p className="truncate text-[11px] text-zinc-500">
                     {editingNote
                       ? `Terakhir diubah: ${formatDate(editingNote.updatedAt)}`
-                      : "Gunakan toolbar WYSIWYG untuk format teks, link web, dan mention task"}
+                      : "Gunakan toolbar WYSIWYG, link web & mention task"}
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsPinned(!isPinned)}
                   title={isPinned ? "Lepas sematan" : "Sematkan ke atas"}
                   className={cn(
-                    "rounded-lg p-2 transition",
+                    "rounded-lg p-1.5 sm:p-2 transition",
                     isPinned
                       ? "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300"
                       : "text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900",
@@ -566,7 +566,7 @@ export function NotesPage() {
                 <button
                   type="button"
                   onClick={handleCloseEditModal}
-                  className="rounded-lg p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-900 dark:hover:text-zinc-200"
+                  className="rounded-lg p-1.5 sm:p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-900 dark:hover:text-zinc-200"
                 >
                   <X size={18} />
                 </button>
@@ -574,7 +574,7 @@ export function NotesPage() {
             </div>
 
             {/* Modal Body */}
-            <div className="flex-1 space-y-4 overflow-y-auto p-6">
+            <div className="flex-1 space-y-3.5 sm:space-y-4 overflow-y-auto p-4 sm:p-6">
               {/* Title input */}
               <div>
                 <input
@@ -582,16 +582,16 @@ export function NotesPage() {
                   placeholder="Judul Catatan..."
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full border-none bg-transparent text-xl font-bold tracking-tight text-zinc-900 placeholder:text-zinc-300 focus:outline-none dark:text-zinc-50 dark:placeholder:text-zinc-700 sm:text-2xl"
+                  className="w-full border-none bg-transparent text-lg font-bold tracking-tight text-zinc-900 placeholder:text-zinc-300 focus:outline-none dark:text-zinc-50 dark:placeholder:text-zinc-700 sm:text-2xl"
                   autoFocus
                 />
               </div>
 
               {/* Color picker & Tag controls */}
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-100 bg-zinc-50/70 p-3 dark:border-zinc-800/80 dark:bg-zinc-900/40">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 rounded-lg border border-zinc-100 bg-zinc-50/70 p-2.5 sm:p-3 dark:border-zinc-800/80 dark:bg-zinc-900/40">
                 {/* Color Selector */}
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-medium text-zinc-500">Warna Aksen:</span>
+                  <span className="text-[11px] font-medium text-zinc-500 shrink-0">Warna Aksen:</span>
                   <div className="flex items-center gap-1.5">
                     {NOTE_COLORS.map((c) => (
                       <button
@@ -614,7 +614,7 @@ export function NotesPage() {
 
                 {/* Tag manager */}
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <Tag size={13} className="text-zinc-400" />
+                  <Tag size={13} className="text-zinc-400 shrink-0" />
                   {tags.map((t) => (
                     <span
                       key={t}
@@ -650,20 +650,20 @@ export function NotesPage() {
               </div>
 
               {/* WYSIWYG Editor with Link & Task Mention support */}
-              <div className="min-h-[320px]">
+              <div className="min-h-[240px] sm:min-h-[320px]">
                 <WysiwygEditor
                   content={content}
                   onChange={setContent}
                   tasks={myTasks}
                   projects={projects}
-                  placeholder="Mulai ketikkan isi catatan Anda... Gunakan tombol 'Mention Task' atau ketik '@' untuk mention task, atau sisipkan tautan link web."
-                  minHeight="min-h-[300px]"
+                  placeholder="Mulai ketikkan isi catatan Anda... Gunakan toolbar untuk format teks, link web, atau mention task tim."
+                  minHeight="min-h-[220px] sm:min-h-[300px]"
                 />
               </div>
             </div>
 
             {/* Modal Footer */}
-            <div className="flex items-center justify-between border-t border-zinc-200 px-6 py-4 dark:border-zinc-800">
+            <div className="flex items-center justify-between border-t border-zinc-200 px-4 py-3 sm:px-6 sm:py-4 dark:border-zinc-800">
               <div>
                 {editingNote && (
                   <button
@@ -672,7 +672,7 @@ export function NotesPage() {
                     className="inline-flex items-center gap-1.5 text-xs font-medium text-rose-500 transition hover:text-rose-600"
                   >
                     <Trash2 size={15} />
-                    <span>Hapus Catatan</span>
+                    <span className="hidden xs:inline">Hapus Catatan</span>
                   </button>
                 )}
               </div>
@@ -681,7 +681,7 @@ export function NotesPage() {
                 <button
                   type="button"
                   onClick={handleCloseEditModal}
-                  className="rounded-lg border border-zinc-200 px-4 py-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"
+                  className="rounded-lg border border-zinc-200 px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"
                 >
                   Batal
                 </button>
@@ -691,7 +691,7 @@ export function NotesPage() {
                   onClick={handleSave}
                   disabled={isSaving}
                   className={cn(
-                    "inline-flex items-center gap-2 rounded-lg px-5 py-2 text-xs font-semibold text-white transition active:scale-[0.98]",
+                    "inline-flex items-center gap-2 rounded-lg px-4 py-1.5 sm:px-5 sm:py-2 text-xs font-semibold text-white transition active:scale-[0.98]",
                     saveSuccess
                       ? "bg-emerald-600"
                       : "bg-violet-600 hover:bg-violet-700 disabled:opacity-50",
@@ -811,30 +811,93 @@ function ViewNoteModal({
   const charCount = plainText.length;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm sm:p-6 animate-in fade-in duration-200">
-      <div className="relative flex max-h-[92vh] w-full max-w-4xl flex-col rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-950 overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2.5 sm:p-6 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="relative flex max-h-[94vh] sm:max-h-[92vh] w-full max-w-4xl flex-col rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-950 overflow-hidden">
         {/* Accent Color top strip */}
         <div className={cn("absolute inset-x-0 top-0 h-1.5", colorMeta.accent)} />
 
         {/* Modal Header */}
-        <div className="flex items-start justify-between border-b border-zinc-200 px-6 pt-5 pb-4 dark:border-zinc-800">
-          <div className="min-w-0 flex-1 pr-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-md bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+        <div className="border-b border-zinc-200 px-4 pt-4 pb-3 sm:px-6 sm:pt-5 sm:pb-4 dark:border-zinc-800">
+          {/* Top Control Bar: Badges on left, Action Buttons on right */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 min-w-0">
+              <span className="shrink-0 rounded-md bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
                 Mode Tinjau (View)
               </span>
               {note.isPinned && (
-                <span className="inline-flex items-center gap-1 rounded-md border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 dark:border-violet-900 dark:bg-violet-950 dark:text-violet-300">
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-md border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 dark:border-violet-900 dark:bg-violet-950 dark:text-violet-300">
                   <Pin size={11} className="fill-violet-600 dark:fill-violet-400" /> Disematkan
                 </span>
               )}
             </div>
 
-            <h2 className="mt-1.5 text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-2xl break-words">
+            {/* Action buttons on top right */}
+            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+              {/* Toggle Pin */}
+              <button
+                type="button"
+                onClick={onTogglePin}
+                title={note.isPinned ? "Lepas sematan" : "Sematkan ke atas"}
+                className={cn(
+                  "rounded-lg p-1.5 sm:p-2 transition",
+                  note.isPinned
+                    ? "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300"
+                    : "text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900",
+                )}
+              >
+                {note.isPinned ? <Pin size={16} className="fill-current" /> : <PinOff size={16} />}
+              </button>
+
+              {/* Export */}
+              <button
+                type="button"
+                onClick={onExport}
+                title="Unduh sebagai file teks (.txt)"
+                className="rounded-lg p-1.5 sm:p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-900 dark:hover:text-zinc-200"
+              >
+                <FileDown size={16} />
+              </button>
+
+              {/* Direct Edit Button */}
+              <button
+                type="button"
+                onClick={onEdit}
+                title="Edit Catatan"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-2.5 py-1.5 sm:px-3 sm:py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-700 active:scale-[0.98]"
+              >
+                <Pencil size={13} />
+                <span className="hidden sm:inline">Edit Catatan</span>
+              </button>
+
+              {/* Delete */}
+              <button
+                type="button"
+                onClick={onDelete}
+                title="Hapus catatan"
+                className="rounded-lg p-1.5 sm:p-2 text-rose-500 transition hover:bg-rose-50 dark:hover:bg-rose-950/40"
+              >
+                <Trash2 size={16} />
+              </button>
+
+              {/* Close */}
+              <button
+                type="button"
+                onClick={onClose}
+                title="Tutup"
+                className="rounded-lg p-1.5 sm:p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-900 dark:hover:text-zinc-200"
+              >
+                <X size={17} />
+              </button>
+            </div>
+          </div>
+
+          {/* Title and metadata - Full width! */}
+          <div className="mt-2.5 sm:mt-3">
+            <h2 className="text-lg font-bold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-2xl break-words">
               {note.title}
             </h2>
 
-            <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500">
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
               {(note.userName || note.userEmail) && (
                 <span>
                   Oleh:{" "}
@@ -849,70 +912,12 @@ function ViewNoteModal({
               </span>
             </div>
           </div>
-
-          {/* Action buttons on top right */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            {/* Toggle Pin */}
-            <button
-              type="button"
-              onClick={onTogglePin}
-              title={note.isPinned ? "Lepas sematan" : "Sematkan ke atas"}
-              className={cn(
-                "rounded-lg p-2 transition",
-                note.isPinned
-                  ? "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300"
-                  : "text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900",
-              )}
-            >
-              {note.isPinned ? <Pin size={17} className="fill-current" /> : <PinOff size={17} />}
-            </button>
-
-            {/* Export */}
-            <button
-              type="button"
-              onClick={onExport}
-              title="Unduh sebagai file teks (.txt)"
-              className="rounded-lg p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-900 dark:hover:text-zinc-200"
-            >
-              <FileDown size={17} />
-            </button>
-
-            {/* Direct Edit Button */}
-            <button
-              type="button"
-              onClick={onEdit}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-700 active:scale-[0.98]"
-            >
-              <Pencil size={13} />
-              <span>Edit Catatan</span>
-            </button>
-
-            {/* Delete */}
-            <button
-              type="button"
-              onClick={onDelete}
-              title="Hapus catatan"
-              className="rounded-lg p-2 text-rose-500 transition hover:bg-rose-50 dark:hover:bg-rose-950/40"
-            >
-              <Trash2 size={17} />
-            </button>
-
-            {/* Close */}
-            <button
-              type="button"
-              onClick={onClose}
-              title="Tutup"
-              className="rounded-lg p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-900 dark:hover:text-zinc-200"
-            >
-              <X size={18} />
-            </button>
-          </div>
         </div>
 
         {/* Tags row */}
         {note.tags && note.tags.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 border-b border-zinc-100 bg-zinc-50/50 px-6 py-2.5 dark:border-zinc-800/80 dark:bg-zinc-900/30">
-            <Tag size={13} className="text-zinc-400" />
+          <div className="flex flex-wrap items-center gap-1.5 border-b border-zinc-100 bg-zinc-50/50 px-4 py-2 sm:px-6 sm:py-2.5 dark:border-zinc-800/80 dark:bg-zinc-900/30">
+            <Tag size={13} className="text-zinc-400 shrink-0" />
             {note.tags.map((t) => (
               <span
                 key={t}
@@ -925,10 +930,10 @@ function ViewNoteModal({
         )}
 
         {/* Modal Scrollable Body */}
-        <div className="flex-1 space-y-6 overflow-y-auto p-6 sm:p-8">
+        <div className="flex-1 space-y-6 overflow-y-auto p-4 sm:p-8">
           {/* Main Note Content */}
           <div
-            className="note-view-content text-sm leading-relaxed text-zinc-900 dark:text-zinc-100"
+            className="note-view-content text-sm leading-relaxed text-zinc-900 dark:text-zinc-100 break-words"
             onClick={handleContentClick}
             dangerouslySetInnerHTML={{
               __html:
@@ -939,8 +944,8 @@ function ViewNoteModal({
 
           {/* Referenced Tasks Section ("Task Terkait") */}
           {mentionedTasks.length > 0 && (
-            <div className="mt-8 rounded-xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
-              <div className="mb-3 flex items-center justify-between">
+            <div className="mt-6 sm:mt-8 rounded-xl border border-zinc-200 bg-zinc-50/70 p-3 sm:p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
+              <div className="mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
                 <div className="flex items-center gap-2 text-xs font-semibold tracking-wider text-zinc-700 uppercase dark:text-zinc-300">
                   <CheckSquare size={14} className="text-violet-600 dark:text-violet-400" />
                   <span>Task Terkait Disebutkan ({mentionedTasks.length})</span>
@@ -1000,23 +1005,23 @@ function ViewNoteModal({
         </div>
 
         {/* Modal Footer */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-zinc-200 px-6 py-3.5 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30">
-          <div className="flex items-center gap-3 text-xs text-zinc-400 dark:text-zinc-500">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-zinc-200 px-4 py-3 sm:px-6 sm:py-3.5 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30">
+          <div className="flex items-center gap-2 sm:gap-3 text-xs text-zinc-400 dark:text-zinc-500">
             <span>{wordCount} kata</span>
             <span>·</span>
             <span>{charCount} karakter</span>
             <span className="hidden sm:inline">·</span>
-            <span className="hidden sm:inline-flex items-center gap-1 text-[11px]">
+            <span className="hidden md:inline-flex items-center gap-1 text-[11px]">
               <Info size={12} /> Klik link web untuk membuka di tab baru, klik mention task untuk
               melihat detail
             </span>
           </div>
 
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex items-center justify-end gap-2 w-full sm:w-auto">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              className="flex-1 sm:flex-none text-center rounded-lg border border-zinc-200 bg-white px-4 py-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
             >
               Tutup
             </button>
@@ -1024,7 +1029,7 @@ function ViewNoteModal({
             <button
               type="button"
               onClick={onEdit}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-700 active:scale-[0.98]"
+              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-lg bg-violet-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-700 active:scale-[0.98]"
             >
               <Pencil size={14} />
               <span>Edit Catatan</span>
@@ -1089,7 +1094,7 @@ function NoteCard({ note, tasks, onView, onEdit, onDelete, onTogglePin, onExport
             )}
           </div>
 
-          <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100">
+          <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 shrink-0">
             <button
               type="button"
               onClick={(e) => {
@@ -1149,13 +1154,13 @@ function NoteCard({ note, tasks, onView, onEdit, onDelete, onTogglePin, onExport
         </div>
 
         <div className="flex items-center justify-between text-[11px] text-zinc-400">
-          <span className="flex items-center gap-1">
-            <Clock size={11} />
-            <span>{formatDate(note.updatedAt || note.createdAt)}</span>
+          <span className="flex items-center gap-1 truncate min-w-0 mr-1.5">
+            <Clock size={11} className="shrink-0" />
+            <span className="truncate">{formatDate(note.updatedAt || note.createdAt)}</span>
           </span>
 
-          {/* Hover Action Buttons */}
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {/* Action Buttons: Visible on mobile, hover on desktop */}
+          <div className="flex items-center gap-0.5 sm:gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
             <button
               type="button"
               onClick={(e) => {

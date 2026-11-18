@@ -248,9 +248,9 @@ export function WysiwygEditor({
       )}
     >
       {editable && (
-        <div className="flex flex-wrap items-center gap-1 border-b border-zinc-200 bg-zinc-50/75 p-2 backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-900/50">
+        <div className="flex items-center gap-1 overflow-x-auto scrollbar-none border-b border-zinc-200 bg-zinc-50/75 p-1.5 sm:flex-wrap sm:p-2 backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-900/50">
           {/* Headings */}
-          <div className="flex items-center gap-0.5 pr-1 border-r border-zinc-200 dark:border-zinc-800">
+          <div className="flex items-center gap-0.5 pr-1 border-r border-zinc-200 dark:border-zinc-800 shrink-0">
             <button
               type="button"
               onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
@@ -293,7 +293,7 @@ export function WysiwygEditor({
           </div>
 
           {/* Text Styling */}
-          <div className="flex items-center gap-0.5 px-1 border-r border-zinc-200 dark:border-zinc-800">
+          <div className="flex items-center gap-0.5 px-1 border-r border-zinc-200 dark:border-zinc-800 shrink-0">
             <button
               type="button"
               onClick={() => editor.chain().focus().toggleBold().run()}
@@ -362,7 +362,7 @@ export function WysiwygEditor({
           </div>
 
           {/* Links & Mentions */}
-          <div className="flex items-center gap-0.5 px-1 border-r border-zinc-200 dark:border-zinc-800">
+          <div className="flex items-center gap-0.5 px-1 border-r border-zinc-200 dark:border-zinc-800 shrink-0">
             {/* Link Button */}
             <button
               type="button"
@@ -409,7 +409,7 @@ export function WysiwygEditor({
 
               {/* Task Picker Dropdown */}
               {isTaskPickerOpen && (
-                <div className="absolute left-0 top-full z-50 mt-1.5 w-72 sm:w-80 rounded-xl border border-zinc-200 bg-white p-2.5 shadow-xl dark:border-zinc-800 dark:bg-zinc-900 animate-in fade-in zoom-in-95 duration-150">
+                <div className="fixed inset-x-3 top-20 z-50 max-w-sm mx-auto sm:max-w-none sm:mx-0 sm:absolute sm:inset-x-auto sm:left-0 sm:top-full sm:mt-1.5 sm:w-80 rounded-xl border border-zinc-200 bg-white p-2.5 shadow-xl dark:border-zinc-800 dark:bg-zinc-900 animate-in fade-in zoom-in-95 duration-150">
                   <div className="mb-2 flex items-center justify-between border-b border-zinc-100 pb-2 dark:border-zinc-800">
                     <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-900 dark:text-zinc-100">
                       <AtSign size={13} className="text-violet-600" />
@@ -505,7 +505,7 @@ export function WysiwygEditor({
           </div>
 
           {/* Lists & Quotes */}
-          <div className="flex items-center gap-0.5 px-1 border-r border-zinc-200 dark:border-zinc-800">
+          <div className="flex items-center gap-0.5 px-1 border-r border-zinc-200 dark:border-zinc-800 shrink-0">
             <button
               type="button"
               onClick={() => editor.chain().focus().toggleBulletList().run()}
@@ -570,7 +570,7 @@ export function WysiwygEditor({
           </div>
 
           {/* History & Reset */}
-          <div className="flex items-center gap-0.5 pl-1">
+          <div className="flex items-center gap-0.5 pl-1 shrink-0">
             <button
               type="button"
               onClick={() => editor.chain().focus().undo().run()}

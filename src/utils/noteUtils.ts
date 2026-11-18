@@ -132,11 +132,11 @@ export function formatNoteContentForView(html: string, tasks: Task[]): string {
           displayTitle ? `Klik untuk melihat detail task: ${displayTitle}` : `Task ${displayId}`,
         );
         a.className =
-          "task-mention-chip inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-semibold bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300 border border-violet-200 dark:border-violet-800 hover:bg-violet-200 dark:hover:bg-violet-900 transition-colors cursor-pointer select-none no-underline my-0.5 align-baseline";
+          "task-mention-chip inline-flex max-w-full items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-semibold bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300 border border-violet-200 dark:border-violet-800 hover:bg-violet-200 dark:hover:bg-violet-900 transition-colors cursor-pointer select-none no-underline my-0.5 align-baseline";
 
-        a.innerHTML = `<span class="opacity-70">📋</span><span class="font-mono">@${escapeHtml(String(displayId))}</span>${
+        a.innerHTML = `<span class="opacity-70 shrink-0">📋</span><span class="font-mono shrink-0">@${escapeHtml(String(displayId))}</span>${
           displayTitle
-            ? `<span class="font-normal text-zinc-600 dark:text-zinc-400">· ${escapeHtml(displayTitle)}</span>`
+            ? `<span class="font-normal text-zinc-600 dark:text-zinc-400 truncate">· ${escapeHtml(displayTitle)}</span>`
             : ""
         }`;
       } else {
@@ -207,8 +207,8 @@ export function formatNoteContentForView(html: string, tasks: Task[]): string {
               link.setAttribute("data-task-id", String(matchedTask.id));
               link.setAttribute("title", `Klik untuk melihat detail task: ${matchedTask.title}`);
               link.className =
-                "task-mention-chip inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-semibold bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300 border border-violet-200 dark:border-violet-800 hover:bg-violet-200 dark:hover:bg-violet-900 transition-colors cursor-pointer select-none no-underline my-0.5 align-baseline";
-              link.innerHTML = `<span class="opacity-70">📋</span><span class="font-mono">@${escapeHtml(String(matchedTask.id))}</span><span class="font-normal text-zinc-600 dark:text-zinc-400">· ${escapeHtml(matchedTask.title)}</span>`;
+                "task-mention-chip inline-flex max-w-full items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-semibold bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300 border border-violet-200 dark:border-violet-800 hover:bg-violet-200 dark:hover:bg-violet-900 transition-colors cursor-pointer select-none no-underline my-0.5 align-baseline";
+              link.innerHTML = `<span class="opacity-70 shrink-0">📋</span><span class="font-mono shrink-0">@${escapeHtml(String(matchedTask.id))}</span><span class="font-normal text-zinc-600 dark:text-zinc-400 truncate">· ${escapeHtml(matchedTask.title)}</span>`;
               fragment.appendChild(link);
             } else {
               fragment.appendChild(doc.createTextNode(matchText));
