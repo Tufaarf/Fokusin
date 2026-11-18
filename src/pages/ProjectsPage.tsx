@@ -1,6 +1,7 @@
-import { ArrowUpRight, Plus, Users } from "lucide-react";
+import { ArrowUpRight, Plus, Users, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
+import { ProjectMembersModal } from "../components/ProjectMembersModal";
 import { Button, Card, inputClass, Modal } from "../components/ui";
 import { toast } from "../services/notifications";
 import { useAppStore } from "../store";
@@ -10,6 +11,7 @@ export function ProjectsPage() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [emails, setEmails] = useState([""]);
+  const [selectedProjectForMembers, setSelectedProjectForMembers] = useState<string | null>(null);
   const submit = () => {
     if (!name.trim()) return;
     addProject(name.trim(), emails.filter(Boolean));
@@ -66,16 +68,32 @@ export function ProjectsPage() {
               </div>
               <div className="mt-3 flex items-center justify-between text-[11px] text-zinc-500">
                 <span>{progress}% progress</span>
-                <span className="flex items-center gap-1">
-                  <Users size={12} /> {project.members.length}
-                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedProjectForMembers(project.id)}
+                  className="flex items-center gap-1 rounded px-1.5 py-0.5 font-medium text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                  title="Kelola anggota project"
+                >
+                  <Users size={12} /> {project.members.length} anggota
+                </button>
               </div>
-              <Link
-                to={`/projects/${project.id}`}
-                className="mt-5 flex h-9 items-center justify-center rounded-lg border border-zinc-200 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
-              >
-                Buka board
-              </Link>
+              <div className="mt-5 flex items-center gap-2">
+                <Link
+                  to={`/projects/${project.id}`}
+                  className="flex h-9 flex-1 items-center justify-center rounded-lg border border-zinc-200 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+                >
+                  Buka board
+                </Link>
+                <Button
+                  variant="secondary"
+                  className="h-9 px-2.5 text-xs"
+                  onClick={() => setSelectedProjectForMembers(project.id)}
+                  title="Kelola anggota project"
+                >
+                  <Users size={13} />
+                  <span className="hidden sm:inline">Anggota</span>
+                </Button>
+              </div>
             </Card>
           );
         })}
@@ -140,6 +158,12 @@ export function ProjectsPage() {
             </div>
           </div>
         </Modal>
+      )}
+      {selectedProjectForMembers && (
+        <ProjectMembersModal
+          projectId={selectedProjectForMembers}
+          onClose={() => setSelectedProjectForMembers(null)}
+        />
       )}
     </div>
   );

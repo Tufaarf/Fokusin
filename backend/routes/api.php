@@ -49,6 +49,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/', [ProjectController::class, 'index']);
         Route::post('/', [ProjectController::class, 'store']); // Atomic Database Transaction
         Route::get('/{id}', [ProjectController::class, 'show']);
+        Route::post('/{id}/members', [ProjectController::class, 'addMember']);
+        Route::delete('/{id}/members/{memberId}', [ProjectController::class, 'removeMember']);
     });
 
     // Tasks & Media Upload Handler

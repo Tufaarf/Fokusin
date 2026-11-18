@@ -1,7 +1,8 @@
-import { Calendar, Circle, MoreHorizontal, Plus, Users } from "lucide-react";
+import { Calendar, Circle, MoreHorizontal, Plus, Users, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { CreateTaskModal } from "../components/CreateTaskModal";
+import { ProjectMembersModal } from "../components/ProjectMembersModal";
 import { TaskModal } from "../components/TaskModal";
 import { Badge, Button, cn } from "../components/ui";
 import { useAppStore } from "../store";
@@ -22,6 +23,7 @@ export function ProjectBoardPage() {
   const [dragging, setDragging] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createStatus, setCreateStatus] = useState<TaskStatus>("todo");
+  const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
 
   const project = projects.find((item) => item.id === projectId);
   const selectedTask = tasks.find(
@@ -51,7 +53,12 @@ export function ProjectBoardPage() {
           <p className="mt-1 text-sm text-zinc-500">{boardTasks.length} tasks pada board ini</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex -space-x-2">
+          <button
+            type="button"
+            onClick={() => setIsMembersModalOpen(true)}
+            className="flex -space-x-2 transition hover:opacity-85 focus:outline-none"
+            title="Kelola anggota project"
+          >
             {project.members.slice(0, 3).map((member) => (
               <div
                 key={member}
@@ -61,8 +68,12 @@ export function ProjectBoardPage() {
                 {member[0].toUpperCase()}
               </div>
             ))}
-          </div>
-          <Button className="flex-1 sm:flex-none">
+          </button>
+          <Button
+            className="flex-1 sm:flex-none"
+            onClick={() => setIsMembersModalOpen(true)}
+            title="Kelola anggota project"
+          >
             <Users size={15} /> {project.members.length} anggota
           </Button>
           <Button
@@ -207,6 +218,12 @@ export function ProjectBoardPage() {
           projectId={project.id}
           defaultStatus={createStatus}
           onClose={() => setIsCreateOpen(false)}
+        />
+      )}
+      {isMembersModalOpen && (
+        <ProjectMembersModal
+          projectId={project.id}
+          onClose={() => setIsMembersModalOpen(false)}
         />
       )}
     </div>

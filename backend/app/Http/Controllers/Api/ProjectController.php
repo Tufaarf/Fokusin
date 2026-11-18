@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ChatParticipant;
 use App\Models\ChatRoom;
+use App\Models\Notification;
 use App\Models\Project;
 use App\Models\ProjectMember;
 use App\Models\User;
@@ -42,7 +43,17 @@ class ProjectController extends Controller
                 'name' => $proj->name,
                 'color' => $proj->color,
                 'description' => $proj->description,
+                'created_by' => $proj->created_by,
                 'members' => $proj->members->pluck('email')->toArray(),
+                'member_details' => $proj->members->map(function ($m) use ($proj) {
+                    return [
+                        'id' => $m->id,
+                        'name' => $m->name,
+                        'email' => $m->email,
+                        'avatar' => $m->avatar,
+                        'role' => $m->pivot?->role ?? ($m->id === $proj->created_by ? 'owner' : 'member'),
+                    ];
+                })->values(),
             ];
         });
 
@@ -73,7 +84,17 @@ class ProjectController extends Controller
                 'name' => $project->name,
                 'color' => $project->color,
                 'description' => $project->description,
+                'created_by' => $project->created_by,
                 'members' => $project->members->pluck('email')->toArray(),
+                'member_details' => $project->members->map(function ($m) use ($project) {
+                    return [
+                        'id' => $m->id,
+                        'name' => $m->name,
+                        'email' => $m->email,
+                        'avatar' => $m->avatar,
+                        'role' => $m->pivot?->role ?? ($m->id === $project->created_by ? 'owner' : 'member'),
+                    ];
+                })->values(),
                 'tasks' => $project->tasks,
                 'chat_room' => $project->chatRoom,
             ]
@@ -176,13 +197,24 @@ class ProjectController extends Controller
             // Jika seluruh tahap sukses, lakukan commit atomik
             DB::commit();
 
+            $project->load('members');
+
             return response()->json([
                 'message' => 'Proyek dan Group Chat berhasil dibuat secara atomik.',
                 'project' => [
                     'id' => $project->id,
                     'name' => $project->name,
                     'color' => $project->color,
+                    'description' => $project->description,
+                    'created_by' => $project->created_by,
                     'members' => $allEmails->toArray(),
+                    'member_details' => $project->members->map(fn($m) => [
+                        'id' => $m->id,
+                        'name' => $m->name,
+                        'email' => $m->email,
+                        'avatar' => $m->avatar,
+                        'role' => $m->pivot?->role ?? ($m->id === $project->created_by ? 'owner' : 'member'),
+                    ])->values(),
                 ],
                 'chat_room' => [
                     'id' => $chatRoom->id,
@@ -207,6 +239,261 @@ class ProjectController extends Controller
 
             return response()->json([
                 'message' => 'Gagal membuat proyek: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Add member(s) to an existing project.
+     * Synchronizes ProjectMember, ChatRoom ChatParticipant, and sends Notification.
+     */
+    public function addMember(Request $request, string $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'email' => 'nullable|email',
+            'user_id' => 'nullable|exists:users,id',
+            'emails' => 'nullable|array',
+            'emails.*' => 'required|email',
+            'role' => 'nullable|string|in:member,admin,owner',
+        ]);
+
+        $currentUser = $request->user();
+        $project = Project::with(['members', 'chatRoom'])->findOrFail($id);
+
+        // Authorization check: User must be creator, project member, or superadmin
+        if ($currentUser && !$currentUser->isSuperAdmin()) {
+            $isMemberOrOwner = $project->created_by === $currentUser->id ||
+                $project->members->contains('id', $currentUser->id);
+            if (!$isMemberOrOwner) {
+                return response()->json(['message' => 'Anda tidak memiliki hak untuk menambah anggota di project ini.'], 403);
+            }
+        }
+
+        $emailsToAdd = collect($validated['emails'] ?? []);
+        if (!empty($validated['email'])) {
+            $emailsToAdd->push($validated['email']);
+        }
+
+        $userIdsToAdd = collect();
+        if (!empty($validated['user_id'])) {
+            $userIdsToAdd->push($validated['user_id']);
+        }
+
+        if ($emailsToAdd->isEmpty() && $userIdsToAdd->isEmpty()) {
+            return response()->json(['message' => 'Email atau ID anggota harus disertakan.'], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            // Handle user_ids
+            foreach ($userIdsToAdd->unique() as $uid) {
+                $user = User::find($uid);
+                if (!$user) continue;
+
+                if ($project->members->contains('id', $user->id)) {
+                    continue;
+                }
+
+                ProjectMember::create([
+                    'project_id' => $project->id,
+                    'user_id' => $user->id,
+                    'role' => $validated['role'] ?? 'member',
+                ]);
+
+                if ($project->chatRoom) {
+                    ChatParticipant::firstOrCreate([
+                        'chat_room_id' => $project->chatRoom->id,
+                        'user_id' => $user->id,
+                    ], [
+                        'last_read_at' => now(),
+                    ]);
+                }
+
+                Notification::create([
+                    'user_id' => $user->id,
+                    'title' => 'Ditambahkan ke Project',
+                    'message' => "Anda telah ditambahkan ke dalam project \"{$project->name}\".",
+                    'type' => 'project_member',
+                    'data' => [
+                        'project_id' => $project->id,
+                        'project_name' => $project->name,
+                        'added_by' => $currentUser?->name ?? 'Admin',
+                    ],
+                    'is_read' => false,
+                ]);
+            }
+
+            // Handle emails
+            foreach ($emailsToAdd->unique() as $email) {
+                $user = User::where('email', $email)->first();
+                if (!$user) {
+                    throw ValidationException::withMessages([
+                        'email' => "User dengan email [{$email}] belum terdaftar di sistem Fokusin.",
+                    ]);
+                }
+
+                if ($project->members->contains('id', $user->id)) {
+                    if ($emailsToAdd->count() === 1 && $userIdsToAdd->isEmpty()) {
+                        throw ValidationException::withMessages([
+                            'email' => "User [{$email}] sudah menjadi anggota project ini.",
+                        ]);
+                    }
+                    continue;
+                }
+
+                ProjectMember::create([
+                    'project_id' => $project->id,
+                    'user_id' => $user->id,
+                    'role' => $validated['role'] ?? 'member',
+                ]);
+
+                if ($project->chatRoom) {
+                    ChatParticipant::firstOrCreate([
+                        'chat_room_id' => $project->chatRoom->id,
+                        'user_id' => $user->id,
+                    ], [
+                        'last_read_at' => now(),
+                    ]);
+                }
+
+                Notification::create([
+                    'user_id' => $user->id,
+                    'title' => 'Ditambahkan ke Project',
+                    'message' => "Anda telah ditambahkan ke dalam project \"{$project->name}\".",
+                    'type' => 'project_member',
+                    'data' => [
+                        'project_id' => $project->id,
+                        'project_name' => $project->name,
+                        'added_by' => $currentUser?->name ?? 'Admin',
+                    ],
+                    'is_read' => false,
+                ]);
+            }
+
+            DB::commit();
+
+            $project->load(['members', 'chatRoom']);
+
+            return response()->json([
+                'message' => 'Anggota berhasil ditambahkan ke project.',
+                'project' => [
+                    'id' => $project->id,
+                    'name' => $project->name,
+                    'color' => $project->color,
+                    'description' => $project->description,
+                    'created_by' => $project->created_by,
+                    'members' => $project->members->pluck('email')->toArray(),
+                    'member_details' => $project->members->map(fn($m) => [
+                        'id' => $m->id,
+                        'name' => $m->name,
+                        'email' => $m->email,
+                        'avatar' => $m->avatar,
+                        'role' => $m->pivot?->role ?? ($m->id === $project->created_by ? 'owner' : 'member'),
+                    ])->values(),
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            if ($e instanceof ValidationException) {
+                return response()->json([
+                    'message' => 'Validasi gagal.',
+                    'errors' => $e->errors(),
+                ], 422);
+            }
+
+            return response()->json([
+                'message' => 'Gagal menambahkan anggota: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Remove member from an existing project.
+     * Synchronizes ProjectMember and ChatRoom ChatParticipant.
+     */
+    public function removeMember(Request $request, string $id, string $memberId): JsonResponse
+    {
+        $currentUser = $request->user();
+        $project = Project::with(['members', 'chatRoom'])->findOrFail($id);
+
+        $targetUser = is_numeric($memberId)
+            ? User::find($memberId)
+            : User::where('email', $memberId)->first();
+
+        if (!$targetUser) {
+            return response()->json(['message' => 'User tidak ditemukan.'], 404);
+        }
+
+        // Check if user is the project owner/creator
+        if ($project->created_by && $project->created_by === $targetUser->id) {
+            return response()->json([
+                'message' => 'Pemilik project (owner) tidak dapat dihapus dari anggota project.'
+            ], 422);
+        }
+
+        // Authorization check: only project creator, superadmin, or self (leaving)
+        if ($currentUser && !$currentUser->isSuperAdmin()) {
+            $isOwner = $project->created_by === $currentUser->id;
+            $isSelf = $currentUser->id === $targetUser->id;
+            if (!$isOwner && !$isSelf) {
+                return response()->json([
+                    'message' => 'Hanya pemilik project atau Superadmin yang dapat menghapus anggota lain.'
+                ], 403);
+            }
+        }
+
+        DB::beginTransaction();
+        try {
+            ProjectMember::where('project_id', $project->id)
+                ->where('user_id', $targetUser->id)
+                ->delete();
+
+            if ($project->chatRoom) {
+                ChatParticipant::where('chat_room_id', $project->chatRoom->id)
+                    ->where('user_id', $targetUser->id)
+                    ->delete();
+            }
+
+            // Notification
+            Notification::create([
+                'user_id' => $targetUser->id,
+                'title' => 'Dikeluarkan dari Project',
+                'message' => "Anda telah dikeluarkan dari project \"{$project->name}\".",
+                'type' => 'project_member_removed',
+                'data' => [
+                    'project_id' => $project->id,
+                    'project_name' => $project->name,
+                ],
+                'is_read' => false,
+            ]);
+
+            DB::commit();
+
+            $project->load('members');
+
+            return response()->json([
+                'message' => 'Anggota berhasil dihapus dari project.',
+                'project' => [
+                    'id' => $project->id,
+                    'name' => $project->name,
+                    'color' => $project->color,
+                    'description' => $project->description,
+                    'created_by' => $project->created_by,
+                    'members' => $project->members->pluck('email')->toArray(),
+                    'member_details' => $project->members->map(fn($m) => [
+                        'id' => $m->id,
+                        'name' => $m->name,
+                        'email' => $m->email,
+                        'avatar' => $m->avatar,
+                        'role' => $m->pivot?->role ?? ($m->id === $project->created_by ? 'owner' : 'member'),
+                    ])->values(),
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Gagal menghapus anggota: ' . $e->getMessage(),
             ], 500);
         }
     }

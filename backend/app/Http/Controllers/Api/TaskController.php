@@ -210,6 +210,18 @@ class TaskController extends Controller
         }
         if ($request->has('assignee')) {
             $task->assignee_name = $request->assignee;
+            if ($request->assignee === 'Unassigned' || empty($request->assignee)) {
+                $task->assignee_id = null;
+                $task->assignee_name = 'Unassigned';
+            } else {
+                $matchedUser = User::where('name', $request->assignee)
+                    ->orWhere('email', $request->assignee)
+                    ->first();
+                if ($matchedUser) {
+                    $task->assignee_id = $matchedUser->id;
+                    $task->assignee_name = $matchedUser->name;
+                }
+            }
         }
 
         $task->save();

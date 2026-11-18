@@ -13,11 +13,22 @@ export type Task = {
   attachments?: { name: string; type: "image" | "video"; url: string }[];
 };
 
+export type ProjectMemberDetail = {
+  id: string | number;
+  name: string;
+  email: string;
+  avatar?: string | null;
+  role?: string;
+};
+
 export type Project = {
   id: string;
   name: string;
   color: string;
+  description?: string;
+  created_by?: string | number;
   members: string[];
+  member_details?: ProjectMemberDetail[];
 };
 
 export type CalendarEvent = {

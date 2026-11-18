@@ -215,6 +215,29 @@ export const api = {
         body: JSON.stringify(data),
       });
     },
+    /**
+     * Add member to an existing project
+     */
+    async addMember(projectId: string, payload: { email?: string; user_id?: string | number }) {
+      return request<{
+        message: string;
+        project: any;
+      }>(`/projects/${projectId}/members`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+    },
+    /**
+     * Remove member from an existing project
+     */
+    async removeMember(projectId: string, memberId: string | number) {
+      return request<{
+        message: string;
+        project: any;
+      }>(`/projects/${projectId}/members/${encodeURIComponent(String(memberId))}`, {
+        method: "DELETE",
+      });
+    },
   },
 
   tasks: {
@@ -243,7 +266,17 @@ export const api = {
         body: JSON.stringify({ status }),
       });
     },
-    async update(taskId: string, data: { description?: string; attachments?: any[] }) {
+    async update(
+      taskId: string,
+      data: {
+        description?: string;
+        attachments?: any[];
+        assignee?: string;
+        status?: string;
+        priority?: string;
+        dueDate?: string;
+      },
+    ) {
       return request(`/tasks/${taskId}`, {
         method: "PUT",
         body: JSON.stringify(data),

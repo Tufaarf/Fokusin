@@ -56,7 +56,22 @@ type AppState = {
   togglePinMessage: (chatId: string, messageId: string) => Promise<void>;
   toggleStarMessage: (chatId: string, messageId: string) => Promise<void>;
   forwardMessage: (targetChatIds: string[], messageText: string) => Promise<void>;
-  updateTask: (taskId: string, description: string, attachments: Task["attachments"]) => void;
+  addProjectMember: (projectId: string, email: string) => Promise<void>;
+  removeProjectMember: (projectId: string, emailOrId: string | number) => Promise<void>;
+  updateTask: (
+    taskId: string,
+    descriptionOrUpdates:
+      | {
+          description?: string;
+          attachments?: Task["attachments"];
+          assignee?: string;
+          status?: TaskStatus;
+          priority?: "Low" | "Medium" | "High";
+          dueDate?: string;
+        }
+      | string,
+    attachments?: Task["attachments"],
+  ) => Promise<void>;
   addTask: (task: {
     projectId: string;
     title: string;
@@ -801,14 +816,160 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  updateTask: (taskId, description, attachments) => {
+  addProjectMember: async (projectId: string, email: string) => {
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed) return;
+
+    // Optimistic update
+    set((state) => {
+      const proj = state.projects.find((p) => p.id === projectId);
+      if (!proj) return state;
+
+      if (proj.members.some((m) => m.toLowerCase() === trimmed)) {
+        return state;
+      }
+
+      const updatedMembers = [...proj.members, trimmed];
+      const newDetail = {
+        id: `user-${Date.now()}`,
+        name: trimmed.split("@")[0],
+        email: trimmed,
+        role: "member",
+      };
+      const updatedDetails = proj.member_details
+        ? [...proj.member_details, newDetail]
+        : [newDetail];
+
+      const updatedChats = state.chats.map((c) => {
+        if (c.projectId === projectId) {
+          const currentParts = c.participants || [];
+          if (!currentParts.some((p) => p.email?.toLowerCase() === trimmed)) {
+            return {
+              ...c,
+              participants: [
+                ...currentParts,
+                { id: `part-${Date.now()}`, name: trimmed.split("@")[0], email: trimmed },
+              ],
+            };
+          }
+        }
+        return c;
+      });
+
+      return {
+        projects: state.projects.map((p) =>
+          p.id === projectId
+            ? { ...p, members: updatedMembers, member_details: updatedDetails }
+            : p,
+        ),
+        chats: updatedChats,
+      };
+    });
+
+    try {
+      const res = await api.projects.addMember(projectId, { email: trimmed });
+      if (res?.project) {
+        set((state) => ({
+          projects: state.projects.map((p) => (p.id === projectId ? { ...p, ...res.project } : p)),
+        }));
+      }
+    } catch (err) {
+      try {
+        const fresh = await api.projects.get(projectId);
+        if (fresh?.data) {
+          set((state) => ({
+            projects: state.projects.map((p) => (p.id === projectId ? fresh.data : p)),
+          }));
+        }
+      } catch {}
+      throw err;
+    }
+  },
+
+  removeProjectMember: async (projectId: string, emailOrId: string | number) => {
+    const identifier = String(emailOrId).trim().toLowerCase();
+
+    // Optimistic update
+    set((state) => {
+      const proj = state.projects.find((p) => p.id === projectId);
+      if (!proj) return state;
+
+      const updatedMembers = proj.members.filter(
+        (m) => m.toLowerCase() !== identifier && String(m) !== String(emailOrId),
+      );
+      const updatedDetails = proj.member_details
+        ? proj.member_details.filter(
+            (d) =>
+              d.email.toLowerCase() !== identifier &&
+              String(d.id) !== String(emailOrId) &&
+              d.name.toLowerCase() !== identifier,
+          )
+        : undefined;
+
+      const updatedChats = state.chats.map((c) => {
+        if (c.projectId === projectId) {
+          return {
+            ...c,
+            participants: (c.participants || []).filter(
+              (p) =>
+                p.email?.toLowerCase() !== identifier &&
+                String(p.id) !== String(emailOrId) &&
+                p.name.toLowerCase() !== identifier,
+            ),
+          };
+        }
+        return c;
+      });
+
+      return {
+        projects: state.projects.map((p) =>
+          p.id === projectId
+            ? { ...p, members: updatedMembers, member_details: updatedDetails }
+            : p,
+        ),
+        chats: updatedChats,
+      };
+    });
+
+    try {
+      const res = await api.projects.removeMember(projectId, emailOrId);
+      if (res?.project) {
+        set((state) => ({
+          projects: state.projects.map((p) => (p.id === projectId ? { ...p, ...res.project } : p)),
+        }));
+      }
+    } catch (err) {
+      try {
+        const fresh = await api.projects.get(projectId);
+        if (fresh?.data) {
+          set((state) => ({
+            projects: state.projects.map((p) => (p.id === projectId ? fresh.data : p)),
+          }));
+        }
+      } catch {}
+      throw err;
+    }
+  },
+
+  updateTask: async (taskId, descriptionOrUpdates, attachments) => {
+    let updates: Partial<Task> = {};
+    if (typeof descriptionOrUpdates === "string") {
+      updates = { description: descriptionOrUpdates, attachments };
+    } else if (descriptionOrUpdates && typeof descriptionOrUpdates === "object") {
+      updates = descriptionOrUpdates;
+    }
+
     set((state) => ({
       tasks: state.tasks.map((task) =>
-        task.id === taskId ? { ...task, description, attachments } : task,
+        task.id === taskId ? { ...task, ...updates } : task,
       ),
     }));
 
-    api.tasks.update(taskId, { description, attachments }).catch(() => {});
+    try {
+      await api.tasks.update(taskId, updates);
+    } catch (err) {
+      console.warn("Failed to update task in backend:", err);
+    }
   },
 
   addTask: async (taskData) => {

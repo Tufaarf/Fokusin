@@ -1,10 +1,11 @@
-import { Bold, Image, Italic, Link, List, Paperclip, Play, Trash2, Underline } from "lucide-react";
+import { Bold, Image, Italic, Link, List, Paperclip, Play, Trash2, Underline, Users } from "lucide-react";
 import { useState } from "react";
 import { useAppStore } from "../store";
 import type { Task } from "../types";
 import { Badge, Button, Modal } from "./ui";
 import { confirmDialog } from "../services/dialog";
 import { toast } from "../services/notifications";
+import { ProjectMembersModal } from "./ProjectMembersModal";
 
 export function TaskModal({ task, onClose }: { task: Task; onClose: () => void }) {
   const updateTask = useAppStore((state) => state.updateTask);
@@ -12,6 +13,9 @@ export function TaskModal({ task, onClose }: { task: Task; onClose: () => void }
   const project = useAppStore((state) => state.projects.find((item) => item.id === task.projectId));
   const [description, setDescription] = useState(task.description);
   const [attachments, setAttachments] = useState(task.attachments ?? []);
+  const [assignee, setAssignee] = useState(task.assignee);
+  const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
+
   const upload = (files: FileList | null) => {
     if (!files) return;
     const next = Array.from(files)
@@ -23,8 +27,9 @@ export function TaskModal({ task, onClose }: { task: Task; onClose: () => void }
       }));
     setAttachments((current) => [...current, ...next]);
   };
+
   const save = () => {
-    updateTask(task.id, description, attachments);
+    updateTask(task.id, { description, attachments, assignee });
     toast.success("Perubahan task berhasil disimpan.");
     onClose();
   };
@@ -61,8 +66,42 @@ export function TaskModal({ task, onClose }: { task: Task; onClose: () => void }
       </div>
       <div className="grid grid-cols-2 gap-4 border-y border-zinc-200 py-4 text-xs dark:border-zinc-800 sm:grid-cols-3">
         <div>
-          <p className="text-zinc-500">Assignee</p>
-          <p className="mt-1 font-medium">{task.assignee}</p>
+          <div className="flex items-center justify-between">
+            <p className="text-zinc-500">Assignee</p>
+            {project && (
+              <button
+                type="button"
+                onClick={() => setIsMembersModalOpen(true)}
+                className="text-[10px] font-medium text-violet-600 hover:underline dark:text-violet-400"
+                title="Kelola anggota project ini"
+              >
+                + Kelola
+              </button>
+            )}
+          </div>
+          {project ? (
+            <select
+              value={assignee}
+              onChange={(e) => setAssignee(e.target.value)}
+              className="mt-1 h-8 w-full rounded border border-zinc-200 bg-transparent px-2 text-xs font-medium outline-none transition focus:border-violet-500 dark:border-zinc-800"
+            >
+              {project.members.map((member) => (
+                <option key={member} value={member} className="dark:bg-zinc-900">
+                  {member}
+                </option>
+              ))}
+              {!project.members.includes(assignee) && assignee !== "Unassigned" && (
+                <option value={assignee} className="dark:bg-zinc-900">
+                  {assignee}
+                </option>
+              )}
+              <option value="Unassigned" className="dark:bg-zinc-900">
+                Unassigned
+              </option>
+            </select>
+          ) : (
+            <p className="mt-1 font-medium">{assignee}</p>
+          )}
         </div>
         <div>
           <p className="text-zinc-500">Status</p>
@@ -162,6 +201,15 @@ export function TaskModal({ task, onClose }: { task: Task; onClose: () => void }
           </Button>
         </div>
       </div>
+      {isMembersModalOpen && project && (
+        <ProjectMembersModal
+          projectId={project.id}
+          onClose={() => setIsMembersModalOpen(false)}
+          onMemberAdded={(newEmail) => {
+            setAssignee(newEmail);
+          }}
+        />
+      )}
     </Modal>
   );
 }

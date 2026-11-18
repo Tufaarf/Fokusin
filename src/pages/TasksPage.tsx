@@ -1,7 +1,8 @@
-import { Calendar, CheckCircle2, CircleDashed, Filter, Plus } from "lucide-react";
+import { Calendar, CheckCircle2, CircleDashed, Filter, Plus, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router";
 import { CreateTaskModal } from "../components/CreateTaskModal";
+import { ProjectMembersModal } from "../components/ProjectMembersModal";
 import { Badge, Button, Card, cn } from "../components/ui";
 import { useAppStore } from "../store";
 import { filterUserTasks } from "../utils/taskFilter";
@@ -10,6 +11,7 @@ export function TasksPage() {
   const { projects, tasks, currentUser } = useAppStore();
   const [selected, setSelected] = useState<string>("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [selectedProjectForMembers, setSelectedProjectForMembers] = useState<string | null>(null);
 
   // Filter tasks: hanya task milik kita (assignee) atau task yang berada di project kita
   const userTasks = useMemo(
@@ -84,6 +86,15 @@ export function TasksPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {selected !== "all" && (
+              <Button
+                variant="secondary"
+                onClick={() => setSelectedProjectForMembers(selected)}
+                title="Kelola anggota project"
+              >
+                <Users size={14} /> Anggota ({projects.find((item) => item.id === selected)?.members.length || 0})
+              </Button>
+            )}
             <Button variant="primary" onClick={() => setIsCreateOpen(true)}>
               <Plus size={14} /> Task baru
             </Button>
@@ -167,6 +178,12 @@ export function TasksPage() {
         <CreateTaskModal
           projectId={selected === "all" ? undefined : selected}
           onClose={() => setIsCreateOpen(false)}
+        />
+      )}
+      {selectedProjectForMembers && (
+        <ProjectMembersModal
+          projectId={selectedProjectForMembers}
+          onClose={() => setSelectedProjectForMembers(null)}
         />
       )}
     </div>

@@ -1,6 +1,7 @@
-import { Calendar, FolderPlus, Plus, Tag, User as UserIcon, X } from "lucide-react";
+import { Calendar, FolderPlus, Plus, Tag, User as UserIcon, Users, X } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
+import { ProjectMembersModal } from "./ProjectMembersModal";
 import { useAppStore } from "../store";
 import type { Task, TaskStatus } from "../types";
 import { Button, Modal, cn, inputClass } from "./ui";
@@ -54,6 +55,7 @@ export function CreateTaskModal({
   const [tags, setTags] = useState<string[]>(["Feature"]);
   const [customTagInput, setCustomTagInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
 
   const toggleTag = (tag: string) => {
     if (tags.includes(tag)) {
@@ -240,13 +242,26 @@ export function CreateTaskModal({
               <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300">
                 Assignee
               </label>
-              <button
-                type="button"
-                onClick={() => setIsCustomAssignee(!isCustomAssignee)}
-                className="text-[11px] text-violet-600 hover:underline dark:text-violet-400"
-              >
-                {isCustomAssignee ? "Pilih dari anggota" : "Input nama lain"}
-              </button>
+              <div className="flex items-center gap-2">
+                {activeProject && (
+                  <button
+                    type="button"
+                    onClick={() => setIsMembersModalOpen(true)}
+                    className="text-[11px] font-medium text-violet-600 hover:underline dark:text-violet-400"
+                    title="Tambah atau kelola anggota project ini"
+                  >
+                    + Anggota Project
+                  </button>
+                )}
+                <span className="text-zinc-300 dark:text-zinc-700">·</span>
+                <button
+                  type="button"
+                  onClick={() => setIsCustomAssignee(!isCustomAssignee)}
+                  className="text-[11px] text-zinc-500 hover:underline dark:text-zinc-400"
+                >
+                  {isCustomAssignee ? "Pilih dari anggota" : "Input nama lain"}
+                </button>
+              </div>
             </div>
 
             {isCustomAssignee ? (
@@ -374,6 +389,16 @@ export function CreateTaskModal({
             </Button>
           </div>
         </form>
+      )}
+      {isMembersModalOpen && activeProject && (
+        <ProjectMembersModal
+          projectId={activeProject.id}
+          onClose={() => setIsMembersModalOpen(false)}
+          onMemberAdded={(newEmail) => {
+            setAssignee(newEmail);
+            setIsCustomAssignee(false);
+          }}
+        />
       )}
     </Modal>
   );
