@@ -274,26 +274,69 @@ export const api = {
     async getRoom(chatId: string) {
       return request<{ data: any }>(`/chats/${chatId}`);
     },
-    async sendMessage(chatId: string, text: string) {
+    async sendMessage(
+      chatId: string,
+      text: string,
+      replyToId?: string,
+      isForwarded?: boolean,
+      attachment?: any,
+    ) {
       return request<{
-        data: {
-          id: string;
-          sender: string;
-          text: string;
-          time: string;
-          mine: boolean;
-          metadata?: {
-            mentions?: Array<{
-              type: string;
-              task_id: string;
-              project_id: string;
-              title: string;
-            }>;
-          };
-        };
+        data: any;
       }>(`/chats/${chatId}/messages`, {
         method: "POST",
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({
+          message: text,
+          reply_to_id: replyToId,
+          is_forwarded: isForwarded,
+          attachment,
+        }),
+      });
+    },
+    async editMessage(chatId: string, messageId: string, message: string) {
+      return request<{ message: string; data: any }>(`/chats/${chatId}/messages/${messageId}`, {
+        method: "PUT",
+        body: JSON.stringify({ message }),
+      });
+    },
+    async deleteMessage(chatId: string, messageId: string, forEveryone: boolean) {
+      return request<{ message: string; for_everyone: boolean; data: any }>(
+        `/chats/${chatId}/messages/${messageId}`,
+        {
+          method: "DELETE",
+          body: JSON.stringify({ for_everyone: forEveryone }),
+        },
+      );
+    },
+    async toggleReaction(chatId: string, messageId: string, emoji: string) {
+      return request<{ message: string; data: any }>(
+        `/chats/${chatId}/messages/${messageId}/react`,
+        {
+          method: "POST",
+          body: JSON.stringify({ emoji }),
+        },
+      );
+    },
+    async togglePin(chatId: string, messageId: string) {
+      return request<{ message: string; isPinned: boolean; data: any }>(
+        `/chats/${chatId}/messages/${messageId}/pin`,
+        {
+          method: "POST",
+        },
+      );
+    },
+    async toggleStar(chatId: string, messageId: string) {
+      return request<{ message: string; isStarred: boolean; data: any }>(
+        `/chats/${chatId}/messages/${messageId}/star`,
+        {
+          method: "POST",
+        },
+      );
+    },
+    async forwardMessage(chatId: string, targetRoomIds: string[], text: string) {
+      return request<{ message: string; data: any[] }>(`/chats/${chatId}/messages/forward`, {
+        method: "POST",
+        body: JSON.stringify({ target_room_ids: targetRoomIds, text }),
       });
     },
     async markAsRead(chatId: string) {

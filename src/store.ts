@@ -1,7 +1,16 @@
 import { create } from "zustand";
 import { initialChats, initialEvents, initialNotes, initialProjects, initialTasks } from "./data";
 import { api } from "./services/api";
-import type { CalendarEvent, ChatRoom, Note, Project, Task, TaskStatus } from "./types";
+import type {
+  CalendarEvent,
+  ChatMessage,
+  ChatRoom,
+  Note,
+  Project,
+  ReplyPreview,
+  Task,
+  TaskStatus,
+} from "./types";
 
 export type User = {
   id?: string | number;
@@ -34,7 +43,19 @@ type AppState = {
   addProject: (name: string, members: string[]) => void;
   addEvent: (event: Omit<CalendarEvent, "id">) => void;
   addFriend: (email: string) => void;
-  sendMessage: (chatId: string, text: string) => void;
+  sendMessage: (
+    chatId: string,
+    text: string,
+    replyTo?: ReplyPreview | null,
+    isForwarded?: boolean,
+    attachment?: any,
+  ) => void;
+  editMessage: (chatId: string, messageId: string, newText: string) => Promise<void>;
+  deleteMessage: (chatId: string, messageId: string, forEveryone: boolean) => Promise<void>;
+  toggleReaction: (chatId: string, messageId: string, emoji: string) => Promise<void>;
+  togglePinMessage: (chatId: string, messageId: string) => Promise<void>;
+  toggleStarMessage: (chatId: string, messageId: string) => Promise<void>;
+  forwardMessage: (targetChatIds: string[], messageText: string) => Promise<void>;
   updateTask: (taskId: string, description: string, attachments: Task["attachments"]) => void;
   addTask: (task: {
     projectId: string;
@@ -328,7 +349,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           String(messageData.sender_id) === String(currentUserId),
         );
 
-      const newMsg = {
+      const newMsg: ChatMessage = {
         id: msgId,
         sender: messageData.sender ?? "User",
         text: messageData.text ?? messageData.message ?? "",
@@ -339,6 +360,19 @@ export const useAppStore = create<AppState>((set, get) => ({
             minute: "2-digit",
           }),
         mine: Boolean(isMine),
+        status: "read",
+        isDeleted: Boolean(messageData.isDeleted || messageData.metadata?.is_deleted),
+        deletedForEveryone: Boolean(
+          messageData.deletedForEveryone || messageData.metadata?.deleted_for_everyone,
+        ),
+        isEdited: Boolean(messageData.isEdited || messageData.metadata?.is_edited),
+        editedAt: messageData.editedAt || messageData.metadata?.edited_at,
+        isForwarded: Boolean(messageData.isForwarded || messageData.metadata?.is_forwarded),
+        replyTo: messageData.replyTo || messageData.metadata?.reply_to || null,
+        reactions: messageData.reactions || messageData.metadata?.reactions || [],
+        isPinned: Boolean(messageData.isPinned || messageData.metadata?.is_pinned),
+        isStarred: Boolean(messageData.isStarred),
+        attachment: messageData.attachment,
         metadata: messageData.metadata,
       };
 
@@ -463,16 +497,22 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
   },
 
-  sendMessage: (chatId, text) => {
-    const tempMsg = {
+  sendMessage: (chatId, text, replyTo, isForwarded, attachment) => {
+    const currentUser = get().currentUser;
+    const tempMsg: ChatMessage = {
       id: `m-${Date.now()}`,
-      sender: "You",
+      sender: currentUser?.name || "You",
       text,
       time: new Date().toLocaleTimeString("id-ID", {
         hour: "2-digit",
         minute: "2-digit",
       }),
       mine: true,
+      status: "read",
+      replyTo: replyTo || null,
+      isForwarded: Boolean(isForwarded),
+      attachment: attachment || undefined,
+      reactions: [],
     };
 
     set((state) => ({
@@ -488,7 +528,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }));
 
     api.chats
-      .sendMessage(chatId, text)
+      .sendMessage(chatId, text, replyTo?.id, isForwarded, attachment)
       .then((response) => {
         if (response?.data) {
           set((state) => ({
@@ -509,6 +549,256 @@ export const useAppStore = create<AppState>((set, get) => ({
       .finally(() => {
         get().syncChats();
       });
+  },
+
+  editMessage: async (chatId, messageId, newText) => {
+    // 1. Optimistic update
+    set((state) => ({
+      chats: state.chats.map((chat) =>
+        chat.id === chatId
+          ? {
+              ...chat,
+              messages: chat.messages.map((m) =>
+                m.id === messageId
+                  ? {
+                      ...m,
+                      text: newText,
+                      isEdited: true,
+                      editedAt: new Date().toISOString(),
+                    }
+                  : m,
+              ),
+              pinnedMessage:
+                chat.pinnedMessage?.id === messageId
+                  ? {
+                      ...chat.pinnedMessage,
+                      text: newText,
+                      isEdited: true,
+                    }
+                  : chat.pinnedMessage,
+            }
+          : chat,
+      ),
+    }));
+
+    // 2. Call backend
+    try {
+      const res = await api.chats.editMessage(chatId, messageId, newText);
+      if (res?.data) {
+        set((state) => ({
+          chats: state.chats.map((chat) =>
+            chat.id === chatId
+              ? {
+                  ...chat,
+                  messages: chat.messages.map((m) =>
+                    m.id === messageId ? { ...res.data, mine: true } : m,
+                  ),
+                }
+              : chat,
+          ),
+        }));
+      }
+    } catch {}
+  },
+
+  deleteMessage: async (chatId, messageId, forEveryone) => {
+    // 1. Optimistic update
+    set((state) => ({
+      chats: state.chats.map((chat) => {
+        if (chat.id !== chatId) return chat;
+
+        let updatedMessages: ChatMessage[];
+        if (forEveryone) {
+          // Replace content with standard WhatsApp deleted indicator
+          updatedMessages = chat.messages.map((m) =>
+            m.id === messageId
+              ? {
+                  ...m,
+                  text: "Pesan ini telah dihapus",
+                  isDeleted: true,
+                  deletedForEveryone: true,
+                  reactions: [],
+                  attachment: undefined,
+                }
+              : m,
+          );
+        } else {
+          // Delete for me: remove from user's view completely
+          updatedMessages = chat.messages.filter((m) => m.id !== messageId);
+        }
+
+        const isPinnedDeleted = chat.pinnedMessage?.id === messageId;
+
+        return {
+          ...chat,
+          messages: updatedMessages,
+          pinnedMessage: isPinnedDeleted ? null : chat.pinnedMessage,
+        };
+      }),
+    }));
+
+    // 2. Call backend
+    try {
+      await api.chats.deleteMessage(chatId, messageId, forEveryone);
+    } catch {}
+  },
+
+  toggleReaction: async (chatId, messageId, emoji) => {
+    const currentUser = get().currentUser;
+    const userName = currentUser?.name || "You";
+
+    // 1. Optimistic update
+    set((state) => ({
+      chats: state.chats.map((chat) => {
+        if (chat.id !== chatId) return chat;
+
+        const updatedMessages = chat.messages.map((m) => {
+          if (m.id !== messageId) return m;
+
+          const reactions = m.reactions ? [...m.reactions] : [];
+          const existingSameEmoji = reactions.find((r) => r.emoji === emoji);
+          const hasUserReactedSame = existingSameEmoji?.users.includes(userName);
+
+          // Remove user from all reactions first
+          const cleaned = reactions
+            .map((r) => ({
+              ...r,
+              users: r.users.filter((u) => u !== userName),
+            }))
+            .map((r) => ({ ...r, count: r.users.length }))
+            .filter((r) => r.count > 0);
+
+          if (!hasUserReactedSame) {
+            // Add reaction
+            const target = cleaned.find((r) => r.emoji === emoji);
+            if (target) {
+              target.users.push(userName);
+              target.count = target.users.length;
+            } else {
+              cleaned.push({
+                emoji,
+                count: 1,
+                users: [userName],
+              });
+            }
+          }
+
+          return {
+            ...m,
+            reactions: cleaned,
+          };
+        });
+
+        return {
+          ...chat,
+          messages: updatedMessages,
+        };
+      }),
+    }));
+
+    // 2. Call backend
+    try {
+      const res = await api.chats.toggleReaction(chatId, messageId, emoji);
+      if (res?.data?.reactions) {
+        set((state) => ({
+          chats: state.chats.map((chat) =>
+            chat.id === chatId
+              ? {
+                  ...chat,
+                  messages: chat.messages.map((m) =>
+                    m.id === messageId ? { ...m, reactions: res.data.reactions } : m,
+                  ),
+                }
+              : chat,
+          ),
+        }));
+      }
+    } catch {}
+  },
+
+  togglePinMessage: async (chatId, messageId) => {
+    set((state) => ({
+      chats: state.chats.map((chat) => {
+        if (chat.id !== chatId) return chat;
+
+        const targetMsg = chat.messages.find((m) => m.id === messageId);
+        const willBePinned = !targetMsg?.isPinned;
+
+        const updatedMessages = chat.messages.map((m) => ({
+          ...m,
+          isPinned: m.id === messageId ? willBePinned : false,
+        }));
+
+        return {
+          ...chat,
+          messages: updatedMessages,
+          pinnedMessage: willBePinned
+            ? updatedMessages.find((m) => m.id === messageId) || null
+            : null,
+        };
+      }),
+    }));
+
+    try {
+      await api.chats.togglePin(chatId, messageId);
+    } catch {}
+  },
+
+  toggleStarMessage: async (chatId, messageId) => {
+    set((state) => ({
+      chats: state.chats.map((chat) => {
+        if (chat.id !== chatId) return chat;
+
+        return {
+          ...chat,
+          messages: chat.messages.map((m) =>
+            m.id === messageId ? { ...m, isStarred: !m.isStarred } : m,
+          ),
+        };
+      }),
+    }));
+
+    try {
+      await api.chats.toggleStar(chatId, messageId);
+    } catch {}
+  },
+
+  forwardMessage: async (targetChatIds, messageText) => {
+    const currentUser = get().currentUser;
+    const timeNow = new Date().toLocaleTimeString("id-ID", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    // 1. Optimistic addition to all target rooms
+    set((state) => ({
+      chats: state.chats.map((chat) => {
+        if (!targetChatIds.includes(chat.id)) return chat;
+
+        const forwardMsg: ChatMessage = {
+          id: `m-fwd-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          sender: currentUser?.name || "You",
+          text: messageText,
+          time: timeNow,
+          mine: true,
+          status: "read",
+          isForwarded: true,
+          reactions: [],
+        };
+
+        return {
+          ...chat,
+          messages: [...chat.messages, forwardMsg],
+        };
+      }),
+    }));
+
+    // 2. Call backend if possible
+    if (targetChatIds.length > 0) {
+      try {
+        await api.chats.forwardMessage(targetChatIds[0], targetChatIds, messageText);
+      } catch {}
+    }
   },
 
   updateTask: (taskId, description, attachments) => {

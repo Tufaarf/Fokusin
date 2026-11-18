@@ -62,11 +62,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{id}/presigned-url', [TaskController::class, 'generatePresignedUrl']);
     });
 
-    // Real-time Chat & Task Mention Parser
+    // Real-time Chat & WhatsApp-like Actions (Edit, Delete, Forward, React, Pin, Star)
     Route::prefix('chats')->group(function () {
         Route::get('/', [ChatController::class, 'index']);
         Route::get('/{chatId}', [ChatController::class, 'show']);
         Route::post('/{chatId}/messages', [ChatController::class, 'sendMessage']); // Mention Parser + WebSocket
+        Route::put('/{chatId}/messages/{messageId}', [ChatController::class, 'editMessage']);
+        Route::delete('/{chatId}/messages/{messageId}', [ChatController::class, 'deleteMessage']);
+        Route::post('/{chatId}/messages/{messageId}/react', [ChatController::class, 'toggleReaction']);
+        Route::post('/{chatId}/messages/{messageId}/pin', [ChatController::class, 'togglePin']);
+        Route::post('/{chatId}/messages/{messageId}/star', [ChatController::class, 'toggleStar']);
+        Route::post('/{chatId}/messages/forward', [ChatController::class, 'forwardMessage']);
         Route::post('/{chatId}/read', [ChatController::class, 'markAsRead']);
     });
 

@@ -38,6 +38,44 @@ export type ChatParticipant = {
   avatar?: string | null;
 };
 
+export type MessageReaction = {
+  emoji: string;
+  count: number;
+  users: string[];
+};
+
+export type ReplyPreview = {
+  id: string;
+  sender: string;
+  text: string;
+};
+
+export type ChatMessage = {
+  id: string;
+  sender: string;
+  senderId?: string | number;
+  text: string;
+  time: string;
+  mine?: boolean;
+  status?: "sent" | "delivered" | "read";
+  isDeleted?: boolean;
+  deletedForEveryone?: boolean;
+  isEdited?: boolean;
+  editedAt?: string;
+  isForwarded?: boolean;
+  replyTo?: ReplyPreview | null;
+  reactions?: MessageReaction[];
+  isPinned?: boolean;
+  isStarred?: boolean;
+  attachment?: {
+    name: string;
+    type: "image" | "file" | "audio";
+    url: string;
+    size?: string;
+  };
+  metadata?: any;
+};
+
 export type ChatRoom = {
   id: string;
   name: string;
@@ -46,7 +84,8 @@ export type ChatRoom = {
   unread: number;
   online?: boolean;
   participants?: ChatParticipant[];
-  messages: { id: string; sender: string; text: string; time: string; mine?: boolean }[];
+  pinnedMessage?: ChatMessage | null;
+  messages: ChatMessage[];
 };
 
 export type User = {
