@@ -79,11 +79,13 @@ function AuthPage({ mode }: { mode: AuthMode }) {
   return (
     <main className="grid min-h-screen bg-white text-zinc-950 dark:bg-zinc-950 dark:text-zinc-50 lg:grid-cols-[1fr_1.05fr]">
       <section className="relative hidden overflow-hidden border-r border-zinc-200 bg-zinc-50 p-10 dark:border-zinc-800 dark:bg-zinc-900/40 lg:flex lg:flex-col">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-600 text-sm font-bold text-white">
-            F
-          </div>
-          <span className="text-base font-semibold">Fokusin</span>
+        <div className="flex items-center gap-3.5">
+          <img
+            src="/logo_fokusin.png"
+            alt="Fokusin Logo"
+            className="h-14 w-14 rounded-2xl object-contain drop-shadow-sm"
+          />
+          <span className="text-3xl font-bold tracking-tight">Fokusin</span>
         </div>
         <div className="my-auto max-w-lg">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-600 dark:text-violet-400">
@@ -112,11 +114,13 @@ function AuthPage({ mode }: { mode: AuthMode }) {
       </section>
 
       <section className="relative flex min-h-screen items-center justify-center px-5 py-10 sm:px-8">
-        <div className="absolute left-5 top-5 flex items-center gap-2 lg:hidden">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-600 text-xs font-bold text-white">
-            F
-          </div>
-          <span className="text-sm font-semibold">Fokusin</span>
+        <div className="absolute left-5 top-5 flex items-center gap-2.5 lg:hidden">
+          <img
+            src="/logo_fokusin.png"
+            alt="Fokusin Logo"
+            className="h-10 w-10 rounded-xl object-contain drop-shadow-sm"
+          />
+          <span className="text-xl font-bold tracking-tight">Fokusin</span>
         </div>
         <button
           onClick={toggleTheme}

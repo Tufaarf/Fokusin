@@ -97,9 +97,11 @@ export function AppShell() {
         )}
       >
         <div className="flex h-16 items-center border-b border-zinc-200 px-4 dark:border-zinc-800">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-950 text-sm font-bold text-white dark:bg-white dark:text-zinc-950">
-            F
-          </div>
+          <img
+            src="/logo_fokusin.png"
+            alt="Fokusin Logo"
+            className="h-8 w-8 shrink-0 rounded-lg object-contain"
+          />
           {!sidebarCollapsed && (
             <div className="ml-3 min-w-0">
               <p className="text-sm font-semibold">Fokusin</p>
@@ -219,6 +221,11 @@ export function AppShell() {
       <div className={cn("transition-all", sidebarCollapsed ? "lg:pl-[72px]" : "lg:pl-64")}>
         <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-zinc-200 bg-white/90 px-4 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/90 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
+            <img
+              src="/logo_fokusin.png"
+              alt="Fokusin Logo"
+              className="h-7 w-7 shrink-0 rounded-md object-contain lg:hidden"
+            />
             <div>
               <p className="truncate text-sm font-semibold">{title}</p>
               <p className="hidden text-[11px] text-zinc-500 sm:block">

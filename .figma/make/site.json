@@ -1,4 +1,8 @@
 {
+  "title": "Fokusin - By Tufaarf",
+  "icons": {
+    "icon": "/logo_fokusin.png"
+  },
   "description": "Manage projects, tasks, calendars, reminders, and team chats in one workspace, helping teams stay organized and meet deadlines.",
   "robots": {
     "index": false

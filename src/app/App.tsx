@@ -14,7 +14,7 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
-    document.title = "Fokusin";
+    document.title = "Fokusin - By Tufaarf";
   }, [theme]);
 
   useEffect(() => {
