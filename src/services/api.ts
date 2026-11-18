@@ -154,6 +154,26 @@ export const api = {
     async me() {
       return request<{ user: any }>("/auth/me");
     },
+    async updateProfile(data: {
+      name: string;
+      email: string;
+      avatar?: string | null;
+      current_password?: string;
+      password?: string;
+    }) {
+      return request<{ message: string; user: any }>("/auth/profile", {
+        method: "PUT",
+        body: JSON.stringify(data),
+      });
+    },
+    async uploadAvatar(file: File) {
+      const formData = new FormData();
+      formData.append("avatar", file);
+      return request<{ message: string; avatar: string; user: any }>("/auth/profile/avatar", {
+        method: "POST",
+        body: formData,
+      });
+    },
   },
 
   dashboard: {
@@ -380,6 +400,51 @@ export const api = {
       return request<{ message: string; notification: any }>("/notifications/simulate", {
         method: "POST",
         body: JSON.stringify(data),
+      });
+    },
+  },
+
+  users: {
+    async list(params?: { q?: string; role?: string }) {
+      const searchParams = new URLSearchParams();
+      if (params?.q) searchParams.append("q", params.q);
+      if (params?.role) searchParams.append("role", params.role);
+      const query = searchParams.toString() ? `?${searchParams.toString()}` : "";
+      return request<{ data: any[]; total: number }>(`/users${query}`);
+    },
+    async get(id: string | number) {
+      return request<{ data: any }>(`/users/${id}`);
+    },
+    async create(data: {
+      name: string;
+      email: string;
+      password: string;
+      role: string;
+      avatar?: string | null;
+    }) {
+      return request<{ message: string; data: any }>("/users", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    },
+    async update(
+      id: string | number,
+      data: {
+        name: string;
+        email: string;
+        password?: string;
+        role: string;
+        avatar?: string | null;
+      },
+    ) {
+      return request<{ message: string; data: any }>(`/users/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      });
+    },
+    async delete(id: string | number) {
+      return request<{ message: string }>(`/users/${id}`, {
+        method: "DELETE",
       });
     },
   },

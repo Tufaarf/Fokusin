@@ -202,7 +202,10 @@ function ToastCard({ toast }: { toast: ToastItem }) {
           {toast.actionLabel && (
             <div className="mt-2 flex items-center gap-1 text-[11px] font-medium text-violet-600 transition group-hover:text-violet-700 dark:text-violet-400 dark:group-hover:text-violet-300">
               <span>{toast.actionLabel}</span>
-              <ExternalLink size={12} className="transition-transform group-hover:translate-x-0.5" />
+              <ExternalLink
+                size={12}
+                className="transition-transform group-hover:translate-x-0.5"
+              />
             </div>
           )}
         </div>

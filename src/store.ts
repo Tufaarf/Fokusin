@@ -7,6 +7,7 @@ export type User = {
   id?: string | number;
   name: string;
   email: string;
+  avatar?: string | null;
   role?: string;
   is_superadmin?: boolean;
 };
@@ -56,6 +57,13 @@ type AppState = {
   updateNote: (id: string | number, updates: Partial<Note>) => Promise<void>;
   deleteNote: (id: string | number) => Promise<void>;
   togglePinNote: (id: string | number) => Promise<void>;
+  updateProfile: (data: {
+    name: string;
+    email: string;
+    avatar?: string | null;
+    current_password?: string;
+    password?: string;
+  }) => Promise<void>;
   login: (email: string, password?: string) => Promise<void>;
   register: (name: string, email: string, password?: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -148,13 +156,33 @@ export const useAppStore = create<AppState>((set, get) => ({
   syncWithBackend: async () => {
     set({ isLoading: true });
     try {
-      const [dashRes, projRes, chatRes, notesRes, taskRes] = await Promise.allSettled([
+      const [dashRes, projRes, chatRes, notesRes, taskRes, meRes] = await Promise.allSettled([
         api.dashboard.get(),
         api.projects.list(),
         api.chats.list(),
         api.notes.list(),
         api.tasks.list(),
+        api.auth.me(),
       ]);
+
+      if (meRes.status === "fulfilled" && meRes.value?.user) {
+        const u = meRes.value.user;
+        const isSuper =
+          u.role === "superadmin" ||
+          u.is_superadmin === true ||
+          u.email?.toLowerCase().includes("superadmin") ||
+          u.email === "admin@fokusin.com";
+        const user: User = {
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          avatar: u.avatar,
+          role: isSuper ? "superadmin" : (u.role ?? "user"),
+          is_superadmin: isSuper,
+        };
+        window.localStorage.setItem("fokusin-user", JSON.stringify(user));
+        set({ currentUser: user });
+      }
 
       if (projRes.status === "fulfilled" && projRes.value?.data) {
         set({ projects: projRes.value.data });
@@ -656,6 +684,33 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  updateProfile: async (data) => {
+    try {
+      const res = await api.auth.updateProfile(data);
+      if (res?.user) {
+        const isSuper =
+          res.user.role === "superadmin" ||
+          res.user.is_superadmin === true ||
+          res.user.email?.toLowerCase().includes("superadmin") ||
+          res.user.email === "admin@fokusin.com";
+
+        const user: User = {
+          id: res.user.id,
+          name: res.user.name,
+          email: res.user.email,
+          avatar: res.user.avatar,
+          role: isSuper ? "superadmin" : (res.user.role ?? "user"),
+          is_superadmin: isSuper,
+        };
+        window.localStorage.setItem("fokusin-user", JSON.stringify(user));
+        set({ currentUser: user });
+      }
+    } catch (err) {
+      // If server error, rethrow so the UI can display validation error
+      throw err;
+    }
+  },
+
   login: async (email, password = "password") => {
     const res = await api.auth.login(email, password);
     if (!res?.user) {
@@ -671,6 +726,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       id: res.user.id,
       name: res.user.name,
       email: res.user.email,
+      avatar: res.user.avatar,
       role: isSuper ? "superadmin" : (res.user.role ?? "user"),
       is_superadmin: isSuper,
     };
@@ -701,6 +757,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       id: res.user.id,
       name: res.user.name,
       email: res.user.email,
+      avatar: res.user.avatar,
       role: isSuper ? "superadmin" : (res.user.role ?? "user"),
       is_superadmin: isSuper,
     };

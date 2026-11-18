@@ -1,11 +1,4 @@
-import {
-  AlertCircle,
-  AlertTriangle,
-  HelpCircle,
-  Link as LinkIcon,
-  Trash2,
-  X,
-} from "lucide-react";
+import { AlertCircle, AlertTriangle, HelpCircle, Link as LinkIcon, Trash2, X } from "lucide-react";
 import React, { useEffect, useRef } from "react";
 import { useDialogStore } from "../services/dialog";
 import { Button, cn, inputClass } from "./ui";
@@ -176,9 +169,7 @@ export function PromptDialog() {
             <h3 className="text-base font-semibold leading-tight text-zinc-900 dark:text-zinc-50">
               {promptOptions.title}
             </h3>
-            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-              {promptOptions.message}
-            </p>
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{promptOptions.message}</p>
           </div>
 
           <button

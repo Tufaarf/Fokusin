@@ -300,7 +300,8 @@ export function NotesPage() {
   const handleDelete = async (id: string | number) => {
     const confirmed = await confirmDialog({
       title: "Hapus Catatan",
-      message: "Apakah Anda yakin ingin menghapus catatan ini? Tindakan ini tidak dapat dibatalkan.",
+      message:
+        "Apakah Anda yakin ingin menghapus catatan ini? Tindakan ini tidak dapat dibatalkan.",
       confirmText: "Ya, Hapus",
       cancelText: "Batal",
       variant: "danger",
@@ -591,7 +592,9 @@ export function NotesPage() {
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 rounded-lg border border-zinc-100 bg-zinc-50/70 p-2.5 sm:p-3 dark:border-zinc-800/80 dark:bg-zinc-900/40">
                 {/* Color Selector */}
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-medium text-zinc-500 shrink-0">Warna Aksen:</span>
+                  <span className="text-[11px] font-medium text-zinc-500 shrink-0">
+                    Warna Aksen:
+                  </span>
                   <div className="flex items-center gap-1.5">
                     {NOTE_COLORS.map((c) => (
                       <button

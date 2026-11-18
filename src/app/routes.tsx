@@ -6,9 +6,11 @@ import { CalendarPage } from "../pages/CalendarPage";
 import { DashboardPage } from "../pages/DashboardPage";
 import { MessagesPage } from "../pages/MessagesPage";
 import { NotesPage } from "../pages/NotesPage";
+import { ProfilePage } from "../pages/ProfilePage";
 import { ProjectBoardPage } from "../pages/ProjectBoardPage";
 import { ProjectsPage } from "../pages/ProjectsPage";
 import { TasksPage } from "../pages/TasksPage";
+import { UsersManagementPage } from "../pages/UsersManagementPage";
 
 export const router = createBrowserRouter([
   { path: "/login", Component: LoginPage },
@@ -27,6 +29,8 @@ export const router = createBrowserRouter([
           { path: "tasks", Component: TasksPage },
           { path: "messages", Component: MessagesPage },
           { path: "notes", Component: NotesPage },
+          { path: "profile", Component: ProfilePage },
+          { path: "users", Component: UsersManagementPage },
         ],
       },
     ],

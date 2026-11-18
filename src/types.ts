@@ -49,6 +49,20 @@ export type ChatRoom = {
   messages: { id: string; sender: string; text: string; time: string; mine?: boolean }[];
 };
 
+export type User = {
+  id?: string | number;
+  name: string;
+  email: string;
+  avatar?: string | null;
+  role?: string;
+  is_superadmin?: boolean;
+  tasks_count?: number;
+  projects_count?: number;
+  notes_count?: number;
+  created_at?: string;
+  updated_at?: string;
+};
+
 export type Note = {
   id: string | number;
   userId?: string | number;

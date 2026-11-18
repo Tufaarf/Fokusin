@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\NoteController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\TaskController;
+use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -28,6 +29,17 @@ Route::middleware('auth:sanctum')->group(function () {
     // Auth status & logout
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);
+    Route::put('/auth/profile', [AuthController::class, 'updateProfile']);
+    Route::post('/auth/profile/avatar', [AuthController::class, 'uploadAvatar']);
+
+    // Superadmin User Management
+    Route::prefix('users')->group(function () {
+        Route::get('/', [UserController::class, 'index']);
+        Route::post('/', [UserController::class, 'store']);
+        Route::get('/{id}', [UserController::class, 'show']);
+        Route::put('/{id}', [UserController::class, 'update']);
+        Route::delete('/{id}', [UserController::class, 'destroy']);
+    });
 
     // Dashboard Aggregation & Companion Urgency Logic
     Route::get('/dashboard', [DashboardController::class, 'index']);

@@ -240,10 +240,10 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         item.type === "reminder"
           ? "reminder"
           : item.type === "success"
-          ? "success"
-          : item.type === "error"
-          ? "error"
-          : "message",
+            ? "success"
+            : item.type === "error"
+              ? "error"
+              : "message",
       );
     }
 
@@ -268,8 +268,8 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
           item.type === "message"
             ? "CHAT_MESSAGE"
             : item.type === "reminder"
-            ? "EVENT_REMINDER_H3"
-            : item.type.toUpperCase(),
+              ? "EVENT_REMINDER_H3"
+              : item.type.toUpperCase(),
         data: {
           roomId: item.roomId,
           roomName: item.roomName,
