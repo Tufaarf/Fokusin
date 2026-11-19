@@ -17,6 +17,7 @@ class User extends Authenticatable
 
     protected $fillable = [
         'name',
+        'username',
         'email',
         'password',
         'avatar',
@@ -74,6 +75,24 @@ class User extends Authenticatable
     public function notes(): HasMany
     {
         return $this->hasMany(Note::class, 'user_id');
+    }
+
+    /**
+     * Generate a unique random username based on user full name.
+     */
+    public static function generateRandomUsername(string $name): string
+    {
+        $cleanName = \Illuminate\Support\Str::lower(preg_replace('/[^a-zA-Z0-9]/', '', $name));
+        if (empty($cleanName)) {
+            $cleanName = 'user';
+        }
+        $cleanName = substr($cleanName, 0, 12);
+
+        do {
+            $candidate = $cleanName . '_' . mt_rand(100, 9999);
+        } while (static::where('username', $candidate)->exists());
+
+        return $candidate;
     }
 
     /**

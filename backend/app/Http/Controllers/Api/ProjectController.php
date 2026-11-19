@@ -49,6 +49,7 @@ class ProjectController extends Controller
                     return [
                         'id' => $m->id,
                         'name' => $m->name,
+                        'username' => $m->username,
                         'email' => $m->email,
                         'avatar' => $m->avatar,
                         'role' => $m->pivot?->role ?? ($m->id === $proj->created_by ? 'owner' : 'member'),
@@ -90,6 +91,7 @@ class ProjectController extends Controller
                     return [
                         'id' => $m->id,
                         'name' => $m->name,
+                        'username' => $m->username,
                         'email' => $m->email,
                         'avatar' => $m->avatar,
                         'role' => $m->pivot?->role ?? ($m->id === $project->created_by ? 'owner' : 'member'),
@@ -117,7 +119,7 @@ class ProjectController extends Controller
             'color' => 'nullable|string|max:30',
             'description' => 'nullable|string',
             'member_emails' => 'nullable|array',
-            'member_emails.*' => 'required|email',
+            'member_emails.*' => 'required|string',
         ]);
 
         $currentUser = $request->user() ?? User::first();
@@ -146,21 +148,25 @@ class ProjectController extends Controller
                 'created_by' => $currentUser->id,
             ]);
 
-            // Kumpulkan email anggota (sertakan pembuat proyek secara otomatis)
+            // Kumpulkan email / identifier anggota (sertakan pembuat proyek secara otomatis)
             $inputEmails = collect($validated['member_emails'] ?? []);
             $allEmails = $inputEmails->push($currentUser->email)->unique()->values();
 
             // (2) Memvalidasi dan memasukkan anggota ke ProjectMembers
             $resolvedUserIds = [];
 
-            foreach ($allEmails as $email) {
-                // Validasi eksistensi user di database
-                $memberUser = User::where('email', $email)->first();
+            foreach ($allEmails as $identifier) {
+                // Validasi eksistensi user di database berdasarkan email atau username
+                $cleanId = ltrim(trim($identifier), '@');
+                $memberUser = User::where('email', $identifier)
+                    ->orWhere('username', $cleanId)
+                    ->orWhere('email', $cleanId)
+                    ->first();
 
                 if (!$memberUser) {
-                    // Jika salah satu email tidak valid / belum terdaftar, batalkan proses
+                    // Jika salah satu identifier tidak valid / belum terdaftar, batalkan proses
                     throw ValidationException::withMessages([
-                        'member_emails' => "Anggota dengan email [{$email}] belum terdaftar di sistem. Transaksi dibatalkan."
+                        'member_emails' => "Anggota [{$identifier}] belum terdaftar di sistem. Transaksi dibatalkan."
                     ]);
                 }
 
@@ -211,6 +217,7 @@ class ProjectController extends Controller
                     'member_details' => $project->members->map(fn($m) => [
                         'id' => $m->id,
                         'name' => $m->name,
+                        'username' => $m->username,
                         'email' => $m->email,
                         'avatar' => $m->avatar,
                         'role' => $m->pivot?->role ?? ($m->id === $project->created_by ? 'owner' : 'member'),
@@ -250,10 +257,12 @@ class ProjectController extends Controller
     public function addMember(Request $request, string $id): JsonResponse
     {
         $validated = $request->validate([
-            'email' => 'nullable|email',
+            'email' => 'nullable|string',
+            'username' => 'nullable|string',
+            'identifier' => 'nullable|string',
             'user_id' => 'nullable|exists:users,id',
             'emails' => 'nullable|array',
-            'emails.*' => 'required|email',
+            'emails.*' => 'required|string',
             'role' => 'nullable|string|in:member,admin,owner',
         ]);
 
@@ -269,9 +278,15 @@ class ProjectController extends Controller
             }
         }
 
-        $emailsToAdd = collect($validated['emails'] ?? []);
+        $identifiersToAdd = collect($validated['emails'] ?? []);
         if (!empty($validated['email'])) {
-            $emailsToAdd->push($validated['email']);
+            $identifiersToAdd->push($validated['email']);
+        }
+        if (!empty($validated['username'])) {
+            $identifiersToAdd->push($validated['username']);
+        }
+        if (!empty($validated['identifier'])) {
+            $identifiersToAdd->push($validated['identifier']);
         }
 
         $userIdsToAdd = collect();
@@ -279,8 +294,8 @@ class ProjectController extends Controller
             $userIdsToAdd->push($validated['user_id']);
         }
 
-        if ($emailsToAdd->isEmpty() && $userIdsToAdd->isEmpty()) {
-            return response()->json(['message' => 'Email atau ID anggota harus disertakan.'], 422);
+        if ($identifiersToAdd->isEmpty() && $userIdsToAdd->isEmpty()) {
+            return response()->json(['message' => 'Username, email, atau ID anggota harus disertakan.'], 422);
         }
 
         DB::beginTransaction();
@@ -323,19 +338,24 @@ class ProjectController extends Controller
                 ]);
             }
 
-            // Handle emails
-            foreach ($emailsToAdd->unique() as $email) {
-                $user = User::where('email', $email)->first();
+            // Handle identifiers (username / email)
+            foreach ($identifiersToAdd->unique() as $rawId) {
+                $cleanId = ltrim(trim($rawId), '@');
+                $user = User::where('email', $rawId)
+                    ->orWhere('username', $cleanId)
+                    ->orWhere('email', $cleanId)
+                    ->first();
+
                 if (!$user) {
                     throw ValidationException::withMessages([
-                        'email' => "User dengan email [{$email}] belum terdaftar di sistem Fokusin.",
+                        'email' => "User [{$rawId}] belum terdaftar di sistem Fokusin.",
                     ]);
                 }
 
                 if ($project->members->contains('id', $user->id)) {
-                    if ($emailsToAdd->count() === 1 && $userIdsToAdd->isEmpty()) {
+                    if ($identifiersToAdd->count() === 1 && $userIdsToAdd->isEmpty()) {
                         throw ValidationException::withMessages([
-                            'email' => "User [{$email}] sudah menjadi anggota project ini.",
+                            'email' => "User [{$user->name}] (@{$user->username}) sudah menjadi anggota project ini.",
                         ]);
                     }
                     continue;
@@ -386,6 +406,7 @@ class ProjectController extends Controller
                     'member_details' => $project->members->map(fn($m) => [
                         'id' => $m->id,
                         'name' => $m->name,
+                        'username' => $m->username,
                         'email' => $m->email,
                         'avatar' => $m->avatar,
                         'role' => $m->pivot?->role ?? ($m->id === $project->created_by ? 'owner' : 'member'),
@@ -484,6 +505,7 @@ class ProjectController extends Controller
                     'member_details' => $project->members->map(fn($m) => [
                         'id' => $m->id,
                         'name' => $m->name,
+                        'username' => $m->username,
                         'email' => $m->email,
                         'avatar' => $m->avatar,
                         'role' => $m->pivot?->role ?? ($m->id === $project->created_by ? 'owner' : 'member'),

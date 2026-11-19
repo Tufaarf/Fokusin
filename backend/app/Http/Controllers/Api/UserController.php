@@ -33,8 +33,10 @@ class UserController extends Controller
 
         if ($request->filled('q')) {
             $search = trim($request->q);
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
+            $cleanSearch = ltrim($search, '@');
+            $query->where(function ($q) use ($search, $cleanSearch) {
+                $q->where('name', 'like', "%{$cleanSearch}%")
+                  ->orWhere('username', 'like', "%{$cleanSearch}%")
                   ->orWhere('email', 'like', "%{$search}%");
             });
         }
@@ -47,6 +49,7 @@ class UserController extends Controller
             return [
                 'id' => $u->id,
                 'name' => $u->name,
+                'username' => $u->username,
                 'email' => $u->email,
                 'role' => $u->role ?? 'user',
                 'avatar' => $u->avatar,
@@ -74,6 +77,7 @@ class UserController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|min:2|max:255',
+            'username' => 'nullable|string|min:3|max:50|regex:/^[a-zA-Z0-9_.-]+$/|unique:users,username',
             'email' => 'required|email|max:255|unique:users,email',
             'password' => 'required|string|min:6',
             'role' => 'required|string|in:user,superadmin,admin',
@@ -81,6 +85,10 @@ class UserController extends Controller
         ], [
             'name.required' => 'Nama pengguna wajib diisi.',
             'name.min' => 'Nama minimal terdiri dari 2 karakter.',
+            'username.min' => 'Username minimal terdiri dari 3 karakter.',
+            'username.max' => 'Username maksimal 50 karakter.',
+            'username.regex' => 'Username hanya boleh berisi huruf, angka, titik (.), strip (-), dan garis bawah (_).',
+            'username.unique' => 'Username ini sudah digunakan.',
             'email.required' => 'Email wajib diisi.',
             'email.email' => 'Format email tidak valid.',
             'email.unique' => 'Email ini sudah terdaftar di sistem.',
@@ -90,8 +98,13 @@ class UserController extends Controller
             'role.in' => 'Pilihan peran tidak valid.',
         ]);
 
+        $username = !empty($validated['username'])
+            ? strtolower(trim($validated['username']))
+            : User::generateRandomUsername($validated['name']);
+
         $newUser = User::create([
             'name' => $validated['name'],
+            'username' => $username,
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
             'role' => strtolower($validated['role']),
@@ -103,6 +116,7 @@ class UserController extends Controller
             'data' => [
                 'id' => $newUser->id,
                 'name' => $newUser->name,
+                'username' => $newUser->username,
                 'email' => $newUser->email,
                 'role' => $newUser->role ?? 'user',
                 'avatar' => $newUser->avatar,
@@ -129,6 +143,7 @@ class UserController extends Controller
             'data' => [
                 'id' => $user->id,
                 'name' => $user->name,
+                'username' => $user->username,
                 'email' => $user->email,
                 'role' => $user->role ?? 'user',
                 'avatar' => $user->avatar,
@@ -153,6 +168,7 @@ class UserController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|min:2|max:255',
+            'username' => 'nullable|string|min:3|max:50|regex:/^[a-zA-Z0-9_.-]+$/|unique:users,username,' . $user->id,
             'email' => 'required|email|max:255|unique:users,email,' . $user->id,
             'role' => 'required|string|in:user,superadmin,admin',
             'password' => 'nullable|string|min:6',
@@ -160,6 +176,10 @@ class UserController extends Controller
         ], [
             'name.required' => 'Nama pengguna wajib diisi.',
             'name.min' => 'Nama minimal terdiri dari 2 karakter.',
+            'username.min' => 'Username minimal terdiri dari 3 karakter.',
+            'username.max' => 'Username maksimal 50 karakter.',
+            'username.regex' => 'Username hanya boleh berisi huruf, angka, titik (.), strip (-), dan garis bawah (_).',
+            'username.unique' => 'Username ini sudah digunakan oleh pengguna lain.',
             'email.required' => 'Email wajib diisi.',
             'email.email' => 'Format email tidak valid.',
             'email.unique' => 'Email ini sudah digunakan oleh pengguna lain.',
@@ -179,6 +199,12 @@ class UserController extends Controller
         $user->email = $validated['email'];
         $user->role = strtolower($validated['role']);
 
+        if (!empty($validated['username'])) {
+            $user->username = strtolower(trim($validated['username']));
+        } elseif (empty($user->username)) {
+            $user->username = User::generateRandomUsername($user->name);
+        }
+
         if (!empty($validated['password'])) {
             $user->password = Hash::make($validated['password']);
         }
@@ -194,6 +220,7 @@ class UserController extends Controller
             'data' => [
                 'id' => $user->id,
                 'name' => $user->name,
+                'username' => $user->username,
                 'email' => $user->email,
                 'role' => $user->role ?? 'user',
                 'avatar' => $user->avatar,

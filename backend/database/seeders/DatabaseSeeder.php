@@ -26,14 +26,14 @@ class DatabaseSeeder extends Seeder
     {
         // 1. Users
         $usersData = [
-            ['name' => 'Super Admin', 'email' => 'superadmin@acme.id', 'role' => 'superadmin'],
-            ['name' => 'ADMIN FOKUSIN', 'email' => 'admin@fokusin.com', 'role' => 'superadmin'],
-            ['name' => 'Daffa Thufail Arrofi', 'email' => 'daffa.rfai@gmail.com', 'role' => 'user'],
-            ['name' => 'You', 'email' => 'you@acme.id', 'role' => 'user'],
-            ['name' => 'Naya Putri', 'email' => 'naya@acme.id', 'role' => 'user'],
-            ['name' => 'Rehan Ahmad', 'email' => 'rehan@acme.id', 'role' => 'user'],
-            ['name' => 'Alif Rahman', 'email' => 'alif@acme.id', 'role' => 'user'],
-            ['name' => 'Sarah Kusuma', 'email' => 'sarah@acme.id', 'role' => 'user'],
+            ['name' => 'Super Admin', 'username' => 'superadmin', 'email' => 'superadmin@acme.id', 'role' => 'superadmin'],
+            ['name' => 'ADMIN FOKUSIN', 'username' => 'admin_fokusin', 'email' => 'admin@fokusin.com', 'role' => 'superadmin'],
+            ['name' => 'Daffa Thufail Arrofi', 'username' => 'daffathufail', 'email' => 'daffa.rfai@gmail.com', 'role' => 'user'],
+            ['name' => 'You', 'username' => 'you_workspace', 'email' => 'you@acme.id', 'role' => 'user'],
+            ['name' => 'Naya Putri', 'username' => 'nayaputri', 'email' => 'naya@acme.id', 'role' => 'user'],
+            ['name' => 'Rehan Ahmad', 'username' => 'rehanahmad', 'email' => 'rehan@acme.id', 'role' => 'user'],
+            ['name' => 'Alif Rahman', 'username' => 'alifrahman', 'email' => 'alif@acme.id', 'role' => 'user'],
+            ['name' => 'Sarah Kusuma', 'username' => 'sarahkusuma', 'email' => 'sarah@acme.id', 'role' => 'user'],
         ];
 
         $users = [];
@@ -42,6 +42,7 @@ class DatabaseSeeder extends Seeder
                 ['email' => $userData['email']],
                 [
                     'name' => $userData['name'],
+                    'username' => $userData['username'] ?? User::generateRandomUsername($userData['name']),
                     'password' => Hash::make('password'),
                     'avatar' => null,
                     'role' => $userData['role'] ?? 'user',

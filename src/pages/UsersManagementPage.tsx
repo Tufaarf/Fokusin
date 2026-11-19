@@ -37,6 +37,7 @@ export function UsersManagementPage() {
   // Modal Create
   const [openCreate, setOpenCreate] = useState(false);
   const [createName, setCreateName] = useState("");
+  const [createUsername, setCreateUsername] = useState("");
   const [createEmail, setCreateEmail] = useState("");
   const [createPassword, setCreatePassword] = useState("");
   const [createRole, setCreateRole] = useState<"user" | "superadmin">("user");
@@ -46,6 +47,7 @@ export function UsersManagementPage() {
   // Modal Edit
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editName, setEditName] = useState("");
+  const [editUsername, setEditUsername] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editRole, setEditRole] = useState<"user" | "superadmin">("user");
   const [editPassword, setEditPassword] = useState("");
@@ -119,9 +121,11 @@ export function UsersManagementPage() {
 
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
+      const q = search.toLowerCase();
       const matchesSearch =
-        u.name.toLowerCase().includes(search.toLowerCase()) ||
-        u.email.toLowerCase().includes(search.toLowerCase());
+        u.name.toLowerCase().includes(q) ||
+        (u.username && u.username.toLowerCase().includes(q.replace(/^@/, ""))) ||
+        u.email.toLowerCase().includes(q);
       const isUserSuper = u.role === "superadmin" || u.is_superadmin;
       const matchesRole =
         roleFilter === "all" ? true : roleFilter === "superadmin" ? isUserSuper : !isUserSuper;
@@ -156,6 +160,7 @@ export function UsersManagementPage() {
       setSubmittingCreate(true);
       const res = await api.users.create({
         name: createName.trim(),
+        username: createUsername.trim().toLowerCase().replace(/^@/, "") || undefined,
         email: createEmail.trim(),
         password: createPassword,
         role: createRole,
@@ -164,6 +169,7 @@ export function UsersManagementPage() {
       const newUser: User = res.data || {
         id: Date.now(),
         name: createName.trim(),
+        username: createUsername.trim().toLowerCase().replace(/^@/, "") || undefined,
         email: createEmail.trim(),
         role: createRole,
         is_superadmin: createRole === "superadmin",
@@ -174,11 +180,13 @@ export function UsersManagementPage() {
       toast.success(`User "${createName.trim()}" berhasil dibuat.`, "User Ditambahkan");
       setOpenCreate(false);
       setCreateName("");
+      setCreateUsername("");
       setCreateEmail("");
       setCreatePassword("");
       setCreateRole("user");
     } catch (err: any) {
       const msg =
+        err?.data?.errors?.username?.[0] ||
         err?.data?.errors?.email?.[0] ||
         err?.data?.errors?.name?.[0] ||
         err?.data?.errors?.password?.[0] ||
@@ -195,6 +203,7 @@ export function UsersManagementPage() {
   const openEditModal = (user: User) => {
     setEditingUser(user);
     setEditName(user.name);
+    setEditUsername(user.username || "");
     setEditEmail(user.email);
     setEditRole(user.role === "superadmin" || user.is_superadmin ? "superadmin" : "user");
     setEditPassword("");
@@ -221,8 +230,10 @@ export function UsersManagementPage() {
 
     try {
       setSubmittingEdit(true);
+      const cleanUsername = editUsername.trim().toLowerCase().replace(/^@/, "");
       const payload: any = {
         name: editName.trim(),
+        username: cleanUsername || undefined,
         email: editEmail.trim(),
         role: editRole,
       };
@@ -238,6 +249,7 @@ export function UsersManagementPage() {
             ? {
                 ...u,
                 name: editName.trim(),
+                username: cleanUsername || u.username,
                 email: editEmail.trim(),
                 role: editRole,
                 is_superadmin: editRole === "superadmin",
@@ -250,6 +262,7 @@ export function UsersManagementPage() {
       setEditingUser(null);
     } catch (err: any) {
       const msg =
+        err?.data?.errors?.username?.[0] ||
         err?.data?.errors?.email?.[0] ||
         err?.data?.errors?.name?.[0] ||
         err?.data?.errors?.password?.[0] ||
@@ -486,6 +499,11 @@ export function UsersManagementPage() {
                               <span className="truncate font-semibold text-zinc-900 dark:text-zinc-100">
                                 {u.name}
                               </span>
+                              {u.username && (
+                                <span className="font-mono text-xs font-semibold text-violet-600 dark:text-violet-400">
+                                  @{u.username}
+                                </span>
+                              )}
                               {isCurrent && (
                                 <span className="rounded bg-emerald-100 px-1.5 py-0.2 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
                                   Anda
@@ -590,6 +608,29 @@ export function UsersManagementPage() {
                 onChange={(e) => setCreateName(e.target.value)}
                 required
               />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium" htmlFor="add-username">
+                Username (Opsional - dibuat otomatis jika kosong)
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-zinc-400 select-none">
+                  @
+                </span>
+                <input
+                  id="add-username"
+                  type="text"
+                  className={`${inputClass} pl-7 font-mono text-xs`}
+                  placeholder="username_pengguna"
+                  value={createUsername}
+                  onChange={(e) =>
+                    setCreateUsername(
+                      e.target.value.toLowerCase().replace(/[^a-zA-Z0-9_.-]/g, ""),
+                    )
+                  }
+                />
+              </div>
             </div>
 
             <div>
@@ -703,6 +744,29 @@ export function UsersManagementPage() {
                 onChange={(e) => setEditName(e.target.value)}
                 required
               />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium" htmlFor="edit-username">
+                Username
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-zinc-400 select-none">
+                  @
+                </span>
+                <input
+                  id="edit-username"
+                  type="text"
+                  className={`${inputClass} pl-7 font-mono text-xs`}
+                  placeholder="username_pengguna"
+                  value={editUsername}
+                  onChange={(e) =>
+                    setEditUsername(
+                      e.target.value.toLowerCase().replace(/[^a-zA-Z0-9_.-]/g, ""),
+                    )
+                  }
+                />
+              </div>
             </div>
 
             <div>

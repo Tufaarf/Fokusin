@@ -113,7 +113,7 @@ export function ProjectsPage() {
             </div>
             <div>
               <div className="mb-2 flex items-center justify-between">
-                <label className="text-xs font-medium">Anggota via email</label>
+                <label className="text-xs font-medium">Anggota via username atau email</label>
                 <button
                   onClick={() => setEmails((current) => [...current, ""])}
                   className="text-xs font-medium text-violet-600"
@@ -125,14 +125,14 @@ export function ProjectsPage() {
                 <div
                   className={`${inputClass} flex items-center bg-zinc-50 text-zinc-500 dark:bg-zinc-900`}
                 >
-                  you@acme.id <span className="ml-auto text-[10px]">You · Owner</span>
+                  {currentUser?.username ? `@${currentUser.username}` : (currentUser?.email || "you@acme.id")} <span className="ml-auto text-[10px]">You · Owner</span>
                 </div>
                 {emails.map((email, index) => (
                   <input
                     key={index}
                     className={inputClass}
-                    type="email"
-                    placeholder="anggota@company.com"
+                    type="text"
+                    placeholder="username atau email@company.com"
                     value={email}
                     onChange={(event) =>
                       setEmails((current) =>

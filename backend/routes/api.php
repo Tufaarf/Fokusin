@@ -68,6 +68,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('chats')->group(function () {
         Route::get('/', [ChatController::class, 'index']);
         Route::get('/{chatId}', [ChatController::class, 'show']);
+        Route::post('/{chatId}/participants', [ChatController::class, 'addParticipant']);
         Route::post('/{chatId}/messages', [ChatController::class, 'sendMessage']); // Mention Parser + WebSocket
         Route::put('/{chatId}/messages/{messageId}', [ChatController::class, 'editMessage']);
         Route::delete('/{chatId}/messages/{messageId}', [ChatController::class, 'deleteMessage']);

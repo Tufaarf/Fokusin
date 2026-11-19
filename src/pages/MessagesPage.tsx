@@ -9,6 +9,7 @@ import {
   CornerUpRight,
   Hash,
   Info,
+  Loader2,
   MailPlus,
   MessageSquare,
   Mic,
@@ -29,12 +30,14 @@ import {
   Star,
   StarOff,
   Trash2,
+  UserPlus,
   Users,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { Button, cn, inputClass, Modal } from "../components/ui";
+import { api } from "../services/api";
 import { realtimeSocket } from "../services/echo";
 import { toast } from "../services/notifications";
 import { resolveChatDisplayName, useAppStore } from "../store";
@@ -100,7 +103,20 @@ export function MessagesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [message, setMessage] = useState("");
   const [friendOpen, setFriendOpen] = useState(false);
-  const [email, setEmail] = useState("");
+  const [friendInput, setFriendInput] = useState("");
+  const [friendSuggestions, setFriendSuggestions] = useState<any[]>([]);
+  const [isSearchingFriend, setIsSearchingFriend] = useState(false);
+  const [isStartingChat, setIsStartingChat] = useState(false);
+  const friendSearchTimeoutRef = useRef<any>(null);
+
+  // Group add member states
+  const [addGroupMemberOpen, setAddGroupMemberOpen] = useState(false);
+  const [groupMemberInput, setGroupMemberInput] = useState("");
+  const [groupSuggestions, setGroupSuggestions] = useState<any[]>([]);
+  const [isSearchingGroupMember, setIsSearchingGroupMember] = useState(false);
+  const [isAddingGroupMember, setIsAddingGroupMember] = useState(false);
+  const groupSearchTimeoutRef = useRef<any>(null);
+
   const [isSyncing, setIsSyncing] = useState(false);
   const navigate = useNavigate();
 
@@ -523,6 +539,118 @@ export function MessagesPage() {
     setActiveActionId(null);
   };
 
+  // Live search for start chat
+  useEffect(() => {
+    if (friendSearchTimeoutRef.current) clearTimeout(friendSearchTimeoutRef.current);
+    const query = friendInput.trim().replace(/^@/, "");
+    if (!query || query.length < 2) {
+      setFriendSuggestions([]);
+      setIsSearchingFriend(false);
+      return;
+    }
+    setIsSearchingFriend(true);
+    friendSearchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const res = await api.friends.search(query);
+        if (res?.data) {
+          const filtered = res.data.filter(
+            (u) =>
+              String(u.id) !== String(currentUser?.id) &&
+              u.email?.toLowerCase() !== currentUser?.email?.toLowerCase() &&
+              (!u.username || u.username?.toLowerCase() !== currentUser?.username?.toLowerCase()),
+          );
+          setFriendSuggestions(filtered);
+        }
+      } catch {
+        setFriendSuggestions([]);
+      } finally {
+        setIsSearchingFriend(false);
+      }
+    }, 250);
+    return () => {
+      if (friendSearchTimeoutRef.current) clearTimeout(friendSearchTimeoutRef.current);
+    };
+  }, [friendInput, currentUser]);
+
+  // Live search for add group member
+  useEffect(() => {
+    if (groupSearchTimeoutRef.current) clearTimeout(groupSearchTimeoutRef.current);
+    const query = groupMemberInput.trim().replace(/^@/, "");
+    if (!query || query.length < 2) {
+      setGroupSuggestions([]);
+      setIsSearchingGroupMember(false);
+      return;
+    }
+    setIsSearchingGroupMember(true);
+    groupSearchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const res = await api.friends.search(query);
+        if (res?.data) {
+          const existingIds = new Set((active?.participants || []).map((p) => String(p.id)));
+          const existingEmails = new Set(
+            (active?.participants || []).map((p) => p.email?.toLowerCase()).filter(Boolean),
+          );
+          const existingUsernames = new Set(
+            (active?.participants || []).map((p) => p.username?.toLowerCase()).filter(Boolean),
+          );
+
+          const filtered = res.data.filter(
+            (u) =>
+              !existingIds.has(String(u.id)) &&
+              !existingEmails.has(u.email?.toLowerCase()) &&
+              (!u.username || !existingUsernames.has(u.username?.toLowerCase())),
+          );
+          setGroupSuggestions(filtered);
+        }
+      } catch {
+        setGroupSuggestions([]);
+      } finally {
+        setIsSearchingGroupMember(false);
+      }
+    }, 250);
+    return () => {
+      if (groupSearchTimeoutRef.current) clearTimeout(groupSearchTimeoutRef.current);
+    };
+  }, [groupMemberInput, active?.participants]);
+
+  const handleStartChat = async (targetIdentifier?: string) => {
+    const raw = (targetIdentifier || friendInput).trim();
+    if (!raw) return;
+    setIsStartingChat(true);
+    try {
+      addFriend(raw);
+      toast.success(`Percakapan dengan ${raw} telah dibuat.`, "Chat Dimulai");
+      setFriendOpen(false);
+      setFriendInput("");
+      setFriendSuggestions([]);
+    } catch (err: any) {
+      const msg = err?.data?.message || err?.message || "Gagal memulai chat.";
+      toast.error(msg, "Gagal Memulai Chat");
+    } finally {
+      setIsStartingChat(false);
+    }
+  };
+
+  const handleAddGroupMember = async (targetIdentifier?: string) => {
+    if (!active) return;
+    const raw = (targetIdentifier || groupMemberInput).trim();
+    if (!raw) return;
+    setIsAddingGroupMember(true);
+    try {
+      const res = await api.chats.addParticipant(active.id, raw);
+      toast.success(res?.message || `Berhasil menambahkan ${raw} ke grup!`);
+      setAddGroupMemberOpen(false);
+      setGroupMemberInput("");
+      setGroupSuggestions([]);
+      await syncChats();
+    } catch (err: any) {
+      const msg = err?.data?.message || err?.message || "Gagal menambahkan anggota ke grup.";
+      toast.error(msg, "Gagal Menambahkan");
+    } finally {
+      setIsAddingGroupMember(false);
+    }
+  };
+
   // Quick reaction trigger
   const handleReaction = (item: ChatMessage, emoji: string) => {
     if (!active || item.isDeleted) return;
@@ -779,7 +907,19 @@ export function MessagesPage() {
               </div>
 
               {/* Header Right Actions */}
-              <div className="ml-auto flex items-center gap-1">
+              <div className="ml-auto flex items-center gap-1.5">
+                {/* Add member button for group chats */}
+                {active.type === "group" && (
+                  <button
+                    onClick={() => setAddGroupMemberOpen(true)}
+                    className="flex items-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-xs font-semibold text-violet-700 shadow-xs transition hover:bg-violet-100 dark:border-violet-900/60 dark:bg-violet-950/60 dark:text-violet-300 dark:hover:bg-violet-900/60"
+                    title="Tambah anggota ke grup menggunakan username atau email"
+                  >
+                    <UserPlus size={14} />
+                    <span className="hidden sm:inline">Tambah Anggota</span>
+                  </button>
+                )}
+
                 {/* Search in chat button */}
                 <button
                   onClick={() => setRoomSearchOpen((v) => !v)}
@@ -804,7 +944,19 @@ export function MessagesPage() {
                   </button>
 
                   {roomMenuOpen && (
-                    <div className="absolute right-0 top-full mt-1 w-52 rounded-xl border border-zinc-200 bg-white p-1 shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
+                    <div className="absolute right-0 top-full mt-1 w-56 rounded-xl border border-zinc-200 bg-white p-1 shadow-xl dark:border-zinc-800 dark:bg-zinc-900 z-30">
+                      {active.type === "group" && (
+                        <button
+                          onClick={() => {
+                            setAddGroupMemberOpen(true);
+                            setRoomMenuOpen(false);
+                          }}
+                          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs font-semibold text-violet-600 hover:bg-violet-50 dark:text-violet-400 dark:hover:bg-violet-950/50"
+                        >
+                          <UserPlus size={14} />
+                          Tambah Anggota via Username
+                        </button>
+                      )}
                       <button
                         onClick={() => {
                           setStarredModalOpen(true);
@@ -1671,33 +1823,168 @@ export function MessagesPage() {
         </Modal>
       )}
 
-      {/* MODAL: Add Friend */}
+      {/* MODAL: Start New Direct Chat via Username / Email */}
       {friendOpen && (
-        <Modal title="Tambah teman via email" onClose={() => setFriendOpen(false)}>
-          <p className="mb-4 text-xs leading-5 text-zinc-500">
-            Masukkan email rekan kerja. Percakapan direct baru akan langsung tersedia.
+        <Modal title="Mulai Chat Baru" onClose={() => setFriendOpen(false)}>
+          <p className="mb-3 text-xs leading-5 text-zinc-500">
+            Ketik username (contoh: <span className="font-mono text-violet-600 dark:text-violet-400">daffathufail</span>) atau email rekan kerja untuk memulai percakapan baru.
           </p>
-          <input
-            autoFocus
-            type="email"
-            className={inputClass}
-            placeholder="nama@company.com"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-          />
+
+          <div className="relative">
+            <input
+              autoFocus
+              type="text"
+              className={cn(inputClass, "pr-8")}
+              placeholder="Username atau nama@company.com..."
+              value={friendInput}
+              onChange={(event) => setFriendInput(event.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleStartChat();
+                }
+              }}
+            />
+            {isSearchingFriend && (
+              <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400">
+                <Loader2 size={14} className="animate-spin" />
+              </div>
+            )}
+
+            {/* Suggestions dropdown */}
+            {friendSuggestions.length > 0 && (
+              <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-52 overflow-y-auto rounded-lg border border-zinc-200 bg-white p-1 shadow-lg dark:border-zinc-800 dark:bg-zinc-950">
+                <p className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                  Hasil Pencarian
+                </p>
+                {friendSuggestions.map((u) => (
+                  <button
+                    key={u.id}
+                    type="button"
+                    onClick={() => handleStartChat(u.username || u.email)}
+                    className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-xs transition hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                  >
+                    {u.avatar ? (
+                      <img src={u.avatar} alt={u.name} className="h-6 w-6 rounded-full object-cover" />
+                    ) : (
+                      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-violet-100 font-semibold text-violet-700 dark:bg-violet-900 dark:text-violet-300">
+                        {u.name?.[0]?.toUpperCase()}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <p className="truncate font-medium text-zinc-900 dark:text-zinc-100">{u.name}</p>
+                        {u.username && (
+                          <span className="font-mono text-[10px] text-violet-600 dark:text-violet-400">
+                            @{u.username}
+                          </span>
+                        )}
+                      </div>
+                      <p className="truncate text-[11px] text-zinc-500">{u.email}</p>
+                    </div>
+                    <span className="text-[10px] text-violet-600 hover:underline dark:text-violet-400">
+                      + Chat
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="mt-5 flex justify-end gap-2">
             <Button onClick={() => setFriendOpen(false)}>Batal</Button>
             <Button
               variant="primary"
-              disabled={!email.includes("@")}
-              onClick={() => {
-                addFriend(email);
-                toast.success(`Percakapan dengan ${email} telah dibuat.`);
-                setFriendOpen(false);
-                setEmail("");
-              }}
+              disabled={!friendInput.trim() || isStartingChat}
+              onClick={() => handleStartChat()}
             >
-              Tambah teman
+              {isStartingChat ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
+              Mulai Chat
+            </Button>
+          </div>
+        </Modal>
+      )}
+
+      {/* MODAL: Add Member to Group Chat via Username / Email */}
+      {addGroupMemberOpen && active && (
+        <Modal
+          title={`Tambah Anggota · ${active.name}`}
+          onClose={() => setAddGroupMemberOpen(false)}
+        >
+          <p className="mb-3 text-xs leading-5 text-zinc-500">
+            Masukkan username atau email rekan kerja untuk ditambahkan ke grup <span className="font-semibold text-zinc-800 dark:text-zinc-200">"{active.name}"</span>.
+          </p>
+
+          <div className="relative">
+            <input
+              autoFocus
+              type="text"
+              className={cn(inputClass, "pr-8")}
+              placeholder="Ketik username (contoh: alya_12) atau email..."
+              value={groupMemberInput}
+              onChange={(e) => setGroupMemberInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleAddGroupMember();
+                }
+              }}
+            />
+            {isSearchingGroupMember && (
+              <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400">
+                <Loader2 size={14} className="animate-spin" />
+              </div>
+            )}
+
+            {/* Suggestions dropdown */}
+            {groupSuggestions.length > 0 && (
+              <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-52 overflow-y-auto rounded-lg border border-zinc-200 bg-white p-1 shadow-lg dark:border-zinc-800 dark:bg-zinc-950">
+                <p className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                  Rekomendasi Pengguna
+                </p>
+                {groupSuggestions.map((u) => (
+                  <button
+                    key={u.id}
+                    type="button"
+                    onClick={() => handleAddGroupMember(u.username || u.email)}
+                    className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-xs transition hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                  >
+                    {u.avatar ? (
+                      <img src={u.avatar} alt={u.name} className="h-6 w-6 rounded-full object-cover" />
+                    ) : (
+                      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-violet-100 font-semibold text-violet-700 dark:bg-violet-900 dark:text-violet-300">
+                        {u.name?.[0]?.toUpperCase()}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <p className="truncate font-medium text-zinc-900 dark:text-zinc-100">{u.name}</p>
+                        {u.username && (
+                          <span className="font-mono text-[10px] text-violet-600 dark:text-violet-400">
+                            @{u.username}
+                          </span>
+                        )}
+                      </div>
+                      <p className="truncate text-[11px] text-zinc-500">{u.email}</p>
+                    </div>
+                    <span className="text-[10px] text-violet-600 hover:underline dark:text-violet-400">
+                      + Masukkan ke Grup
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-5 flex justify-end gap-2">
+            <Button onClick={() => setAddGroupMemberOpen(false)}>Batal</Button>
+            <Button
+              variant="primary"
+              disabled={!groupMemberInput.trim() || isAddingGroupMember}
+              onClick={() => handleAddGroupMember()}
+            >
+              {isAddingGroupMember ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
+              Tambahkan
             </Button>
           </div>
         </Modal>

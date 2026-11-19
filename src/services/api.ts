@@ -124,20 +124,20 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
 export const api = {
   auth: {
-    async login(email: string, password = "password") {
+    async login(loginOrEmail: string, password = "password") {
       const res = await request<{ user: any; token: string }>("/auth/login", {
         method: "POST",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: loginOrEmail, login: loginOrEmail, password }),
       });
       if (res.token) {
         localStorage.setItem("fokusin_token", res.token);
       }
       return res;
     },
-    async register(name: string, email: string, password = "password") {
+    async register(name: string, email: string, password = "password", username?: string) {
       const res = await request<{ user: any; token: string }>("/auth/register", {
         method: "POST",
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ name, email, password, username }),
       });
       if (res.token) {
         localStorage.setItem("fokusin_token", res.token);
@@ -156,6 +156,7 @@ export const api = {
     },
     async updateProfile(data: {
       name: string;
+      username?: string;
       email: string;
       avatar?: string | null;
       current_password?: string;
@@ -218,7 +219,10 @@ export const api = {
     /**
      * Add member to an existing project
      */
-    async addMember(projectId: string, payload: { email?: string; user_id?: string | number }) {
+    async addMember(
+      projectId: string,
+      payload: { email?: string; username?: string; identifier?: string; user_id?: string | number },
+    ) {
       return request<{
         message: string;
         project: any;
@@ -375,13 +379,23 @@ export const api = {
     async markAsRead(chatId: string) {
       return request(`/chats/${chatId}/read`, { method: "POST" });
     },
+    async addParticipant(chatId: string, identifier: string) {
+      return request<{
+        message: string;
+        user: any;
+        participants: any[];
+      }>(`/chats/${chatId}/participants`, {
+        method: "POST",
+        body: JSON.stringify({ identifier, username: identifier, email: identifier }),
+      });
+    },
   },
 
   friends: {
-    async addFriend(email: string) {
+    async addFriend(identifier: string) {
       return request<{ message: string; chat_room: any }>("/friends/add", {
         method: "POST",
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ identifier, username: identifier, email: identifier }),
       });
     },
     async search(query: string) {
@@ -493,6 +507,7 @@ export const api = {
     },
     async create(data: {
       name: string;
+      username?: string;
       email: string;
       password: string;
       role: string;
@@ -507,6 +522,7 @@ export const api = {
       id: string | number,
       data: {
         name: string;
+        username?: string;
         email: string;
         password?: string;
         role: string;

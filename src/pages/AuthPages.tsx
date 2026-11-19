@@ -21,7 +21,8 @@ function AuthPage({ mode }: { mode: AuthMode }) {
   const location = useLocation();
   const destination = (location.state as { from?: string } | null)?.from ?? "/";
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
+  const [emailOrLogin, setEmailOrLogin] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -32,18 +33,42 @@ function AuthPage({ mode }: { mode: AuthMode }) {
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
-    if (isRegister && name.trim().length < 2) {
-      const msg = "Nama harus terdiri dari minimal 2 karakter.";
-      setError(msg);
-      toast.error(msg, "Validasi Gagal");
-      return;
+
+    if (isRegister) {
+      if (name.trim().length < 2) {
+        const msg = "Nama harus terdiri dari minimal 2 karakter.";
+        setError(msg);
+        toast.error(msg, "Validasi Gagal");
+        return;
+      }
+      const cleanUsername = username.trim().toLowerCase();
+      if (cleanUsername.length < 3) {
+        const msg = "Username harus terdiri dari minimal 3 karakter.";
+        setError(msg);
+        toast.error(msg, "Validasi Gagal");
+        return;
+      }
+      if (!/^[a-zA-Z0-9_.-]+$/.test(cleanUsername)) {
+        const msg = "Username hanya boleh berupa huruf, angka, titik (.), strip (-), dan garis bawah (_).";
+        setError(msg);
+        toast.error(msg, "Validasi Gagal");
+        return;
+      }
+      if (!emailOrLogin.includes("@")) {
+        const msg = "Masukkan alamat email yang valid.";
+        setError(msg);
+        toast.error(msg, "Validasi Gagal");
+        return;
+      }
+    } else {
+      if (!emailOrLogin.trim()) {
+        const msg = "Masukkan email atau username Anda.";
+        setError(msg);
+        toast.error(msg, "Validasi Gagal");
+        return;
+      }
     }
-    if (!email.includes("@")) {
-      const msg = "Masukkan alamat email yang valid.";
-      setError(msg);
-      toast.error(msg, "Validasi Gagal");
-      return;
-    }
+
     if (password.length < 6) {
       const msg = "Password harus terdiri dari minimal 6 karakter.";
       setError(msg);
@@ -54,15 +79,16 @@ function AuthPage({ mode }: { mode: AuthMode }) {
     try {
       setLoading(true);
       if (isRegister) {
-        await register(name.trim(), email.trim(), password);
-        toast.success(`Selamat datang di Fokusin, ${name.trim()}!`, "Pendaftaran Berhasil");
+        await register(name.trim(), emailOrLogin.trim(), password, username.trim().toLowerCase());
+        toast.success(`Selamat datang di Fokusin, ${name.trim()}! (@${username.trim().toLowerCase()})`, "Pendaftaran Berhasil");
       } else {
-        await login(email.trim(), password);
+        await login(emailOrLogin.trim(), password);
         toast.success("Berhasil masuk ke Fokusin.", "Masuk Berhasil");
       }
       navigate(isRegister ? "/" : destination, { replace: true });
     } catch (err: any) {
       const msg =
+        err?.data?.errors?.username?.[0] ||
         err?.data?.errors?.email?.[0] ||
         err?.data?.errors?.password?.[0] ||
         err?.data?.errors?.name?.[0] ||
@@ -147,32 +173,62 @@ function AuthPage({ mode }: { mode: AuthMode }) {
 
           <form onSubmit={submit} className="space-y-4">
             {isRegister && (
-              <div>
-                <label className="mb-2 block text-xs font-medium" htmlFor="name">
-                  Nama lengkap
-                </label>
-                <input
-                  id="name"
-                  autoComplete="name"
-                  className={inputClass}
-                  placeholder="Nama Anda"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                />
-              </div>
+              <>
+                <div>
+                  <label className="mb-2 block text-xs font-medium" htmlFor="name">
+                    Nama lengkap
+                  </label>
+                  <input
+                    id="name"
+                    autoComplete="name"
+                    className={inputClass}
+                    placeholder="Nama Anda"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-xs font-medium" htmlFor="username">
+                    Username
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-zinc-400 select-none">
+                      @
+                    </span>
+                    <input
+                      id="username"
+                      autoComplete="username"
+                      className={`${inputClass} pl-7 font-mono text-sm`}
+                      placeholder="username_anda"
+                      value={username}
+                      onChange={(event) =>
+                        setUsername(
+                          event.target.value.toLowerCase().replace(/[^a-zA-Z0-9_.-]/g, ""),
+                        )
+                      }
+                      required
+                    />
+                  </div>
+                  <p className="mt-1 text-[11px] text-zinc-400">
+                    Gunakan min. 3 karakter. Digunakan untuk login dan mention di chat/grup.
+                  </p>
+                </div>
+              </>
             )}
             <div>
-              <label className="mb-2 block text-xs font-medium" htmlFor="email">
-                Email
+              <label className="mb-2 block text-xs font-medium" htmlFor="email-or-login">
+                {isRegister ? "Alamat Email" : "Email atau Username"}
               </label>
               <input
-                id="email"
-                type="email"
-                autoComplete="email"
+                id="email-or-login"
+                type={isRegister ? "email" : "text"}
+                autoComplete={isRegister ? "email" : "username"}
                 className={inputClass}
-                placeholder="nama@company.com"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                placeholder={isRegister ? "nama@company.com" : "nama@company.com atau username"}
+                value={emailOrLogin}
+                onChange={(event) => setEmailOrLogin(event.target.value)}
+                required
               />
             </div>
             <div>

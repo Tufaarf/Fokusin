@@ -15,6 +15,7 @@ import type {
 export type User = {
   id?: string | number;
   name: string;
+  username?: string;
   email: string;
   avatar?: string | null;
   role?: string;
@@ -43,6 +44,7 @@ type AppState = {
   addProject: (name: string, members: string[]) => void;
   addEvent: (event: Omit<CalendarEvent, "id">) => void;
   addFriend: (email: string) => void;
+  addChatParticipant: (chatId: string, identifier: string) => Promise<any>;
   sendMessage: (
     chatId: string,
     text: string,
@@ -95,13 +97,14 @@ type AppState = {
   togglePinNote: (id: string | number) => Promise<void>;
   updateProfile: (data: {
     name: string;
+    username?: string;
     email: string;
     avatar?: string | null;
     current_password?: string;
     password?: string;
   }) => Promise<void>;
   login: (email: string, password?: string) => Promise<void>;
-  register: (name: string, email: string, password?: string) => Promise<void>;
+  register: (name: string, email: string, password?: string, username?: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -211,6 +214,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         const user: User = {
           id: u.id,
           name: u.name,
+          username: u.username,
           email: u.email,
           avatar: u.avatar,
           role: isSuper ? "superadmin" : (u.role ?? "user"),
@@ -480,10 +484,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       .catch(() => {});
   },
 
-  addFriend: (email) => {
+  addFriend: (identifier) => {
+    const cleanName = identifier.includes("@") ? identifier.split("@")[0] : identifier.replace(/^@/, "");
     const tempChat: ChatRoom = {
       id: `chat-${Date.now()}`,
-      name: email.split("@")[0],
+      name: cleanName,
       type: "direct",
       unread: 0,
       online: false,
@@ -493,7 +498,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((state) => ({ chats: [...state.chats, tempChat] }));
 
     api.friends
-      .addFriend(email)
+      .addFriend(identifier)
       .then((response) => {
         if (response?.chat_room) {
           const currentUser = get().currentUser;
@@ -510,6 +515,19 @@ export const useAppStore = create<AppState>((set, get) => ({
       .finally(() => {
         get().syncChats();
       });
+  },
+
+  addChatParticipant: async (chatId, identifier) => {
+    const res = await api.chats.addParticipant(chatId, identifier);
+    if (res?.participants) {
+      set((state) => ({
+        chats: state.chats.map((c) =>
+          c.id === chatId ? { ...c, participants: res.participants } : c,
+        ),
+      }));
+    }
+    await get().syncChats();
+    return res;
   },
 
   sendMessage: (chatId, text, replyTo, isForwarded, attachment) => {
@@ -1148,6 +1166,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         const user: User = {
           id: res.user.id,
           name: res.user.name,
+          username: res.user.username,
           email: res.user.email,
           avatar: res.user.avatar,
           role: isSuper ? "superadmin" : (res.user.role ?? "user"),
@@ -1176,6 +1195,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const user: User = {
       id: res.user.id,
       name: res.user.name,
+      username: res.user.username,
       email: res.user.email,
       avatar: res.user.avatar,
       role: isSuper ? "superadmin" : (res.user.role ?? "user"),
@@ -1193,8 +1213,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     await get().syncWithBackend();
   },
 
-  register: async (name, email, password = "password") => {
-    const res = await api.auth.register(name, email, password);
+  register: async (name, email, password = "password", username?: string) => {
+    const res = await api.auth.register(name, email, password, username);
     if (!res?.user) {
       throw new Error("Gagal mendaftar akun baru.");
     }
@@ -1207,6 +1227,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const user: User = {
       id: res.user.id,
       name: res.user.name,
+      username: res.user.username,
       email: res.user.email,
       avatar: res.user.avatar,
       role: isSuper ? "superadmin" : (res.user.role ?? "user"),

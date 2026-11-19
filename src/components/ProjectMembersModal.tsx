@@ -30,7 +30,7 @@ export function ProjectMembersModal({
 
   // Suggestions state
   const [suggestions, setSuggestions] = useState<
-    { id: string | number; name: string; email: string; avatar?: string | null }[]
+    { id: string | number; name: string; username?: string; email: string; avatar?: string | null }[]
   >([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -87,6 +87,7 @@ export function ProjectMembersModal({
   const memberList: {
     id?: string | number;
     name: string;
+    username?: string;
     email: string;
     avatar?: string | null;
     isOwner: boolean;
@@ -109,6 +110,7 @@ export function ProjectMembersModal({
     return {
       id: detail?.id,
       name: name.charAt(0).toUpperCase() + name.slice(1),
+      username: detail?.username,
       email: email,
       avatar: detail?.avatar,
       isOwner: Boolean(isOwner),
@@ -211,8 +213,8 @@ export function ProjectMembersModal({
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <input
-                  type="email"
-                  placeholder="Ketik email anggota (contoh: alya@company.com)..."
+                  type="text"
+                  placeholder="Ketik username (contoh: alya_12) atau email..."
                   value={inputEmail}
                   onChange={(e) => {
                     setInputEmail(e.target.value);
@@ -260,7 +262,7 @@ export function ProjectMembersModal({
                   <button
                     key={user.id}
                     type="button"
-                    onClick={() => handleAdd(user.email)}
+                    onClick={() => handleAdd(user.username || user.email)}
                     className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-xs transition hover:bg-zinc-100 dark:hover:bg-zinc-900"
                   >
                     {user.avatar ? (
@@ -275,9 +277,16 @@ export function ProjectMembersModal({
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium text-zinc-900 dark:text-zinc-100">
-                        {user.name}
-                      </p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="truncate font-medium text-zinc-900 dark:text-zinc-100">
+                          {user.name}
+                        </p>
+                        {user.username && (
+                          <span className="font-mono text-[10px] text-violet-600 dark:text-violet-400">
+                            @{user.username}
+                          </span>
+                        )}
+                      </div>
                       <p className="truncate text-[11px] text-zinc-500">{user.email}</p>
                     </div>
                     <span className="text-[10px] text-violet-600 hover:underline dark:text-violet-400">
@@ -343,6 +352,11 @@ export function ProjectMembersModal({
                         <p className="truncate text-xs font-medium text-zinc-900 dark:text-zinc-100">
                           {member.name}
                         </p>
+                        {member.username && (
+                          <span className="font-mono text-[10px] text-violet-600 dark:text-violet-400">
+                            @{member.username}
+                          </span>
+                        )}
                         {isCurrentUser && (
                           <span className="text-[10px] text-zinc-400">(Anda)</span>
                         )}

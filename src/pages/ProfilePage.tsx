@@ -24,6 +24,7 @@ export function ProfilePage() {
 
   // State Profile Info
   const [name, setName] = useState(currentUser?.name ?? "");
+  const [username, setUsername] = useState(currentUser?.username ?? "");
   const [email, setEmail] = useState(currentUser?.email ?? "");
   const [savingInfo, setSavingInfo] = useState(false);
 
@@ -51,6 +52,15 @@ export function ProfilePage() {
       toast.error("Nama lengkap harus memiliki minimal 2 karakter.", "Validasi Gagal");
       return;
     }
+    const cleanUsername = username.trim().toLowerCase().replace(/^@/, "");
+    if (!cleanUsername || cleanUsername.length < 3) {
+      toast.error("Username harus memiliki minimal 3 karakter.", "Validasi Gagal");
+      return;
+    }
+    if (!/^[a-zA-Z0-9_.-]+$/.test(cleanUsername)) {
+      toast.error("Username hanya boleh berupa huruf, angka, titik (.), strip (-), dan garis bawah (_).", "Validasi Gagal");
+      return;
+    }
     if (!email.trim() || !email.includes("@")) {
       toast.error("Alamat email tidak valid.", "Validasi Gagal");
       return;
@@ -60,11 +70,13 @@ export function ProfilePage() {
       setSavingInfo(true);
       await updateProfile({
         name: name.trim(),
+        username: cleanUsername,
         email: email.trim(),
       });
       toast.success("Informasi profil Anda berhasil diperbarui.", "Profil Tersimpan");
     } catch (err: any) {
       const msg =
+        err?.data?.errors?.username?.[0] ||
         err?.data?.errors?.email?.[0] ||
         err?.data?.errors?.name?.[0] ||
         err?.data?.message ||
@@ -175,6 +187,11 @@ export function ProfilePage() {
           <div className="flex-1 text-center sm:text-left">
             <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
               <h2 className="text-xl font-bold tracking-tight">{currentUser?.name}</h2>
+              {currentUser?.username && (
+                <span className="font-mono text-xs font-semibold text-violet-600 dark:text-violet-400">
+                  @{currentUser.username}
+                </span>
+              )}
               {isSuper && (
                 <span className="rounded bg-violet-600 px-2 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider">
                   Superadmin
@@ -187,6 +204,12 @@ export function ProfilePage() {
             </p>
 
             <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-xs text-zinc-500 sm:justify-start">
+              <span className="rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 dark:border-zinc-800 dark:bg-zinc-900">
+                Username:{" "}
+                <span className="font-mono font-semibold text-violet-700 dark:text-violet-300">
+                  @{currentUser?.username || "belum_ada"}
+                </span>
+              </span>
               <span className="rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 dark:border-zinc-800 dark:bg-zinc-900">
                 User ID:{" "}
                 <span className="font-mono text-zinc-700 dark:text-zinc-300">
@@ -214,7 +237,7 @@ export function ProfilePage() {
             </div>
             <div>
               <h3 className="font-semibold text-sm">Informasi Pribadi</h3>
-              <p className="text-xs text-zinc-500">Perbarui nama lengkap dan kontak email akun.</p>
+              <p className="text-xs text-zinc-500">Perbarui nama lengkap, username, dan kontak email akun.</p>
             </div>
           </div>
 
@@ -232,6 +255,33 @@ export function ProfilePage() {
                 onChange={(e) => setName(e.target.value)}
                 required
               />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-xs font-medium" htmlFor="profile-username">
+                Username
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-zinc-400 select-none">
+                  @
+                </span>
+                <input
+                  id="profile-username"
+                  type="text"
+                  className={`${inputClass} pl-7 font-mono text-sm`}
+                  placeholder="username_anda"
+                  value={username}
+                  onChange={(e) =>
+                    setUsername(
+                      e.target.value.toLowerCase().replace(/[^a-zA-Z0-9_.-]/g, ""),
+                    )
+                  }
+                  required
+                />
+              </div>
+              <p className="mt-1 text-[11px] text-zinc-400">
+                Digunakan untuk login, direct chat, dan menambahkan ke grup chat.
+              </p>
             </div>
 
             <div>

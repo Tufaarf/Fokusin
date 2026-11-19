@@ -14,27 +14,39 @@ use Illuminate\Support\Str;
 class FriendController extends Controller
 {
     /**
-     * Add friend by email and automatically initiate direct chat room
+     * Add friend by username or email and automatically initiate direct chat room
      */
     public function addFriend(Request $request): JsonResponse
     {
-        $request->validate([
-            'email' => 'required|email',
-        ]);
+        $rawIdentifier = trim(
+            $request->input('username') ??
+            $request->input('identifier') ??
+            $request->input('email') ??
+            ''
+        );
+
+        if (empty($rawIdentifier)) {
+            return response()->json(['message' => 'Username atau email wajib diisi.'], 422);
+        }
+
+        $cleanIdentifier = ltrim($rawIdentifier, '@');
 
         $currentUser = $request->user() ?? User::first();
         if (!$currentUser) {
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
-        $friendUser = User::where('email', $request->email)->first();
+        $friendUser = User::where('username', $cleanIdentifier)
+            ->orWhere('email', $rawIdentifier)
+            ->orWhere('email', $cleanIdentifier)
+            ->first();
 
         if (!$friendUser) {
-            return response()->json(['message' => "User dengan email {$request->email} tidak ditemukan."], 404);
+            return response()->json(['message' => "User dengan username atau email '{$rawIdentifier}' tidak ditemukan."], 404);
         }
 
         if ($friendUser->id === $currentUser->id) {
-            return response()->json(['message' => 'Tidak dapat menambahkan diri sendiri sebagai teman.'], 422);
+            return response()->json(['message' => 'Tidak dapat menambahkan diri sendiri sebagai teman chat.'], 422);
         }
 
         Friend::firstOrCreate([
@@ -84,8 +96,8 @@ class FriendController extends Controller
                 'unread' => 0,
                 'online' => true,
                 'participants' => [
-                    ['id' => $currentUser->id, 'name' => $currentUser->name, 'email' => $currentUser->email],
-                    ['id' => $friendUser->id, 'name' => $friendUser->name, 'email' => $friendUser->email],
+                    ['id' => $currentUser->id, 'name' => $currentUser->name, 'username' => $currentUser->username, 'email' => $currentUser->email, 'avatar' => $currentUser->avatar],
+                    ['id' => $friendUser->id, 'name' => $friendUser->name, 'username' => $friendUser->username, 'email' => $friendUser->email, 'avatar' => $friendUser->avatar],
                 ],
                 'messages' => [],
             ]
@@ -93,16 +105,21 @@ class FriendController extends Controller
     }
 
     /**
-     * Search friends / users
+     * Search friends / users by name, username, or email
      */
     public function search(Request $request): JsonResponse
     {
-        $query = $request->query('q', '');
+        $rawQuery = trim($request->query('q', ''));
+        $cleanQuery = ltrim($rawQuery, '@');
 
-        $users = User::where('name', 'like', "%{$query}%")
-            ->orWhere('email', 'like', "%{$query}%")
-            ->limit(10)
-            ->get(['id', 'name', 'email', 'avatar']);
+        $users = User::where(function ($q) use ($rawQuery, $cleanQuery) {
+            $q->where('name', 'like', "%{$cleanQuery}%")
+              ->orWhere('username', 'like', "%{$cleanQuery}%")
+              ->orWhere('email', 'like', "%{$rawQuery}%")
+              ->orWhere('email', 'like', "%{$cleanQuery}%");
+        })
+        ->limit(10)
+        ->get(['id', 'name', 'username', 'email', 'avatar']);
 
         return response()->json(['data' => $users]);
     }

@@ -112,8 +112,10 @@ class ChatController extends Controller
                 'participants' => $room->participants->map(fn($p) => [
                     'id' => $p->id,
                     'name' => $p->name,
+                    'username' => $p->username,
                     'email' => $p->email,
                     'role' => $p->role,
+                    'avatar' => $p->avatar,
                 ])->values(),
                 'pinnedMessage' => $pinnedMsg ?? null,
                 'messages' => $messages->values(),
@@ -165,8 +167,10 @@ class ChatController extends Controller
                 'participants' => $room->participants->map(fn($p) => [
                     'id' => $p->id,
                     'name' => $p->name,
+                    'username' => $p->username,
                     'email' => $p->email,
                     'role' => $p->role,
+                    'avatar' => $p->avatar,
                 ])->values(),
                 'pinnedMessage' => $pinnedMsg ?? null,
                 'messages' => $messages->values(),
@@ -604,5 +608,93 @@ class ChatController extends Controller
         );
 
         return response()->json(['message' => 'Room marked as read']);
+    }
+
+    /**
+     * Add a participant to a chat group using username or email
+     */
+    public function addParticipant(Request $request, string $chatId): JsonResponse
+    {
+        $rawIdentifier = trim(
+            $request->input('username') ??
+            $request->input('identifier') ??
+            $request->input('email') ??
+            ''
+        );
+
+        if (empty($rawIdentifier)) {
+            return response()->json(['message' => 'Username atau email wajib diisi.'], 422);
+        }
+
+        $cleanIdentifier = ltrim($rawIdentifier, '@');
+
+        $currentUser = $request->user() ?? User::first();
+        $room = ChatRoom::with(['participants', 'project'])->findOrFail($chatId);
+
+        $targetUser = User::where('username', $cleanIdentifier)
+            ->orWhere('email', $rawIdentifier)
+            ->orWhere('email', $cleanIdentifier)
+            ->first();
+
+        if (!$targetUser) {
+            return response()->json(['message' => "Pengguna dengan username atau email '{$rawIdentifier}' tidak ditemukan."], 404);
+        }
+
+        if ($room->participants->contains('id', $targetUser->id)) {
+            return response()->json(['message' => "Pengguna '{$targetUser->name}' (@{$targetUser->username}) sudah menjadi anggota grup ini."], 422);
+        }
+
+        // Add to chat participants
+        ChatParticipant::firstOrCreate([
+            'chat_room_id' => $room->id,
+            'user_id' => $targetUser->id,
+        ], [
+            'last_read_at' => now(),
+        ]);
+
+        // If linked to a project, also add to project members
+        if ($room->project_id) {
+            \App\Models\ProjectMember::firstOrCreate([
+                'project_id' => $room->project_id,
+                'user_id' => $targetUser->id,
+            ], [
+                'role' => 'member',
+            ]);
+        }
+
+        // Notification
+        \App\Models\Notification::create([
+            'user_id' => $targetUser->id,
+            'title' => 'Ditambahkan ke Grup Obrolan',
+            'message' => "Anda telah ditambahkan ke dalam grup \"{$room->name}\".",
+            'type' => 'chat',
+            'data' => [
+                'chat_id' => $room->id,
+                'chat_name' => $room->name,
+                'added_by' => $currentUser?->name ?? 'Admin',
+            ],
+            'is_read' => false,
+        ]);
+
+        $room->load(['participants', 'messages.sender']);
+
+        return response()->json([
+            'message' => "Berhasil menambahkan {$targetUser->name} (@{$targetUser->username}) ke dalam grup.",
+            'user' => [
+                'id' => $targetUser->id,
+                'name' => $targetUser->name,
+                'username' => $targetUser->username,
+                'email' => $targetUser->email,
+                'avatar' => $targetUser->avatar,
+            ],
+            'participants' => $room->participants->map(fn($p) => [
+                'id' => $p->id,
+                'name' => $p->name,
+                'username' => $p->username,
+                'email' => $p->email,
+                'role' => $p->role,
+                'avatar' => $p->avatar,
+            ])->values(),
+        ]);
     }
 }

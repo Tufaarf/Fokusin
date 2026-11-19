@@ -16,6 +16,7 @@ export type Task = {
 export type ProjectMemberDetail = {
   id: string | number;
   name: string;
+  username?: string;
   email: string;
   avatar?: string | null;
   role?: string;
@@ -44,6 +45,7 @@ export type CalendarEvent = {
 export type ChatParticipant = {
   id: string | number;
   name: string;
+  username?: string;
   email?: string;
   role?: string;
   avatar?: string | null;
@@ -102,6 +104,7 @@ export type ChatRoom = {
 export type User = {
   id?: string | number;
   name: string;
+  username?: string;
   email: string;
   avatar?: string | null;
   role?: string;
