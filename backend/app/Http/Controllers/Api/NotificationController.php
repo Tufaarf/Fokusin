@@ -128,7 +128,41 @@ class NotificationController extends Controller
             ]);
         }
 
-        // Default: reminder
+        if ($type === 'task' || $type === 'task_reminder') {
+            $taskTitle = $request->input('title', 'Finalisasi Arsitektur Database & API Contract');
+            $hTag = $request->input('h_tag', 'H-3');
+            $msg = $request->input('message', "Tugas '{$taskTitle}' pada project 'Core Platform' jatuh tempo dalam 3 hari lagi ({$hTag}). Segera selesaikan sebelum batas waktu.");
+
+            $notification = Notification::create([
+                'user_id' => $currentUser->id,
+                'title' => "Pengingat {$hTag}: {$taskTitle}",
+                'message' => $msg,
+                'type' => 'TASK_REMINDER_H3',
+                'data' => [
+                    'h_tag' => $hTag,
+                    'task_id' => $request->input('task_id', 'TASK-SIM-01'),
+                    'task_title' => $taskTitle,
+                    'project_id' => 'proj-demo',
+                    'project_name' => 'Core Platform',
+                    'due_date' => Carbon::now()->addDays(3)->toISOString(),
+                    'days_remaining' => 3,
+                ],
+                'is_read' => false,
+            ]);
+
+            try {
+                broadcast(new EventReminderSent($notification, $currentUser->id));
+            } catch (\Throwable $e) {
+                // broadcast fallback
+            }
+
+            return response()->json([
+                'message' => 'Simulasi reminder task berhasil dikirim',
+                'notification' => $notification,
+            ]);
+        }
+
+        // Default: reminder kalender
         $title = $request->input('title', 'Pengingat H-2: Sprint Review & Release');
         $msg = $request->input('message', 'Agenda akan berlangsung besok pukul 10:00 WIB. Jangan lupa siapkan laporan.');
 
@@ -152,8 +186,70 @@ class NotificationController extends Controller
         }
 
         return response()->json([
-            'message' => 'Simulasi reminder berhasil dikirim',
+            'message' => 'Simulasi reminder kalender berhasil dikirim',
             'notification' => $notification,
+        ]);
+    }
+
+    /**
+     * Trigger manual pengecekan pengingat H-3 untuk kalender & task
+     */
+    public function triggerH3(Request $request): JsonResponse
+    {
+        $testEmail = $request->input('test_email');
+        $force = $request->boolean('force', true);
+
+        $params = [];
+        if ($testEmail) {
+            $params['--test-email'] = $testEmail;
+        }
+        if ($force) {
+            $params['--force'] = true;
+        }
+
+        \Illuminate\Support\Facades\Artisan::call('events:remind-h3', $params);
+        $output = \Illuminate\Support\Facades\Artisan::output();
+
+        return response()->json([
+            'message' => 'Proses pengingat H-3 berhasil dijalankan',
+            'output' => $output,
+        ]);
+    }
+
+    /**
+     * Webhook Cron Eksternal untuk Railway / Cron-Job.org / Cloud Scheduler
+     * Bebas dipanggil otomatis via GET atau POST dengan proteksi opsional CRON_SECRET
+     */
+    public function cronTrigger(Request $request): JsonResponse
+    {
+        $expectedSecret = env('CRON_SECRET');
+        $providedSecret = $request->input('key') ?? $request->input('secret') ?? $request->header('X-Cron-Key');
+
+        if ($expectedSecret && $providedSecret !== $expectedSecret) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Unauthorized: Invalid CRON_SECRET key',
+            ], 403);
+        }
+
+        $force = $request->boolean('force', false);
+        $testEmail = $request->input('test_email');
+
+        $params = [];
+        if ($force) {
+            $params['--force'] = true;
+        }
+        if ($testEmail) {
+            $params['--test-email'] = $testEmail;
+        }
+
+        \Illuminate\Support\Facades\Artisan::call('events:remind-h3', $params);
+        $output = \Illuminate\Support\Facades\Artisan::output();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Scheduler pengingat H-3 berhasil dijalankan melalui Webhook Cron',
+            'output' => $output,
         ]);
     }
 }

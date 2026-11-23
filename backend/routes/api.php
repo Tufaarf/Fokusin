@@ -25,6 +25,9 @@ Route::prefix('auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
 });
 
+// Webhook Cron Eksternal untuk Railway / Cron-Job.org / Cloud Scheduler (bisa di-ping via GET/POST)
+Route::match(['get', 'post'], '/cron/remind-h3', [NotificationController::class, 'cronTrigger']);
+
 // Rute Terproteksi (Harus memiliki Bearer Token Sanctum yang valid di database)
 Route::middleware('auth:sanctum')->group(function () {
     // Auth status & logout
@@ -120,5 +123,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/{id}/read', [NotificationController::class, 'markAsRead']);
         Route::post('/read-all', [NotificationController::class, 'markAllAsRead']);
         Route::post('/simulate', [NotificationController::class, 'simulate']);
+        Route::post('/trigger-h3', [NotificationController::class, 'triggerH3']);
     });
 });

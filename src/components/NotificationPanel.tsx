@@ -129,7 +129,11 @@ export function NotificationPanel() {
         navigate("/messages");
       }
     } else {
-      navigate("/calendar");
+      if (item.data?.task_id || item.type === "TASK_REMINDER_H3") {
+        navigate("/projects");
+      } else {
+        navigate("/calendar");
+      }
     }
   };
 
@@ -167,19 +171,23 @@ export function NotificationPanel() {
 
   const handleTestReminder = () => {
     const testReminders = [
-      { title: "Review Sprint & Demo Orbit v1.0", hTag: "H-2", date: "Besok", time: "10:00 WIB" },
-      { title: "Presentasi Growth Campaign Q4", hTag: "H-1", date: "Hari Ini", time: "14:00 WIB" },
-      { title: "Weekly Sync Tech Architecture", hTag: "H-3", date: "Kamis", time: "09:30 WIB" },
+      { title: "Review Sprint & Demo Orbit v1.0", hTag: "H-2", date: "Besok", time: "10:00 WIB", isTask: false },
+      { title: "Selesaikan Integrasi API Payment Gateway", hTag: "H-3", date: "3 hari lagi", time: "23:59 WIB", isTask: true, projectName: "Orbit Mobile App" },
+      { title: "Presentasi Growth Campaign Q4", hTag: "H-1", date: "Hari Ini", time: "14:00 WIB", isTask: false },
+      { title: "Audit Keamanan & Penetrasi Server", hTag: "H-3", date: "3 hari lagi", time: "18:00 WIB", isTask: true, projectName: "Core Infrastructure" },
+      { title: "Weekly Sync Tech Architecture", hTag: "H-3", date: "Kamis", time: "09:30 WIB", isTask: false },
     ];
     const pick = testReminders[Math.floor(Math.random() * testReminders.length)];
 
     notifyReminder({
-      title: pick.title,
-      message: `Agenda dijadwalkan ${pick.date} pukul ${pick.time}. Siapkan materi Anda.`,
+      title: `Pengingat ${pick.hTag}: ${pick.title}`,
+      message: pick.isTask
+        ? `Tugas pada project '${pick.projectName}' jatuh tempo ${pick.date}. Segera selesaikan sebelum batas waktu.`
+        : `Agenda dijadwalkan ${pick.date} pukul ${pick.time}. Siapkan materi Anda.`,
       hTag: pick.hTag,
       eventDate: pick.date,
       time: pick.time,
-      onClick: () => navigate("/calendar"),
+      onClick: () => navigate(pick.isTask ? "/projects" : "/calendar"),
     });
   };
 
@@ -341,10 +349,18 @@ export function NotificationPanel() {
                         "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-xs font-semibold",
                         isMessage
                           ? "bg-violet-100 text-violet-600 dark:bg-violet-950/60 dark:text-violet-400"
+                          : item.type === "TASK_REMINDER_H3" || item.data?.task_id
+                          ? "bg-indigo-100 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400"
                           : "bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400",
                       )}
                     >
-                      {isMessage ? <MessageSquare size={15} /> : <BellRing size={15} />}
+                      {isMessage ? (
+                        <MessageSquare size={15} />
+                      ) : item.type === "TASK_REMINDER_H3" || item.data?.task_id ? (
+                        <Clock size={15} />
+                      ) : (
+                        <BellRing size={15} />
+                      )}
                     </div>
 
                     <div className="min-w-0 flex-1">

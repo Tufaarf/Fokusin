@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Mail\CalendarReminderMail;
+use App\Mail\TaskReminderMail;
 use App\Models\CalendarEvent;
 use App\Models\ChatMessage;
 use App\Models\ChatParticipant;
@@ -16,6 +18,7 @@ use Carbon\Carbon;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -105,6 +108,99 @@ class FokusinBackendTest extends TestCase
             'user_id' => $this->user->id,
             'type' => 'EVENT_REMINDER_H3',
         ]);
+    }
+
+    /**
+     * 3b. Test H-3 Event Reminder Sends Email to Calendar Owner
+     */
+    public function test_h3_event_reminder_sends_email_to_calendar_owner(): void
+    {
+        Mail::fake();
+
+        $event = CalendarEvent::updateOrCreate(
+            ['id' => 'TEST-EV-H3-EMAIL'],
+            [
+                'user_id' => $this->user->id,
+                'title' => 'Strategi Rilis Produk Fokusin',
+                'event_date' => Carbon::today()->addDays(3)->toDateString(),
+                'time' => '10:00',
+                'type' => 'Meeting',
+            ]
+        );
+
+        $exitCode = Artisan::call('events:remind-h3', ['--force' => true]);
+        $this->assertEquals(0, $exitCode);
+
+        Mail::assertSent(CalendarReminderMail::class, function ($mail) {
+            return $mail->hasTo($this->user->email)
+                && $mail->daysRemaining === 3
+                && $mail->hTag === 'H-3'
+                && $mail->hasFrom('officialfokusin@gmail.com');
+        });
+    }
+
+    /**
+     * 3c. Test H-3 Task Reminder Sends Email to Task Owner / Assignee
+     */
+    public function test_h3_task_reminder_sends_email_to_task_assignee(): void
+    {
+        Mail::fake();
+
+        $project = Project::firstOrCreate(
+            ['id' => 'test-proj-h3'],
+            ['name' => 'Project H3 Reminder Test', 'color' => '#8b5cf6', 'created_by' => $this->user->id]
+        );
+
+        $task = Task::updateOrCreate(
+            ['id' => 'TASK-H3-EMAIL'],
+            [
+                'project_id' => $project->id,
+                'title' => 'Implementasi Modul Pembayaran',
+                'status' => 'progress',
+                'priority' => 'High',
+                'assignee_id' => $this->user->id,
+                'due_date' => Carbon::today()->addDays(3)->setTime(16, 0, 0),
+            ]
+        );
+
+        $exitCode = Artisan::call('events:remind-h3', ['--force' => true]);
+        $this->assertEquals(0, $exitCode);
+
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $this->user->id,
+            'type' => 'TASK_REMINDER_H3',
+        ]);
+
+        Mail::assertSent(TaskReminderMail::class, function ($mail) {
+            return $mail->hasTo($this->user->email)
+                && $mail->daysRemaining === 3
+                && $mail->hTag === 'H-3'
+                && $mail->hasFrom('officialfokusin@gmail.com');
+        });
+    }
+
+    /**
+     * 3d. Test Trigger H-3 Endpoint API
+     */
+    public function test_trigger_h3_endpoint_api(): void
+    {
+        $response = $this->actingAs($this->user)
+            ->postJson('/api/notifications/trigger-h3', ['force' => true]);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('message', 'Proses pengingat H-3 berhasil dijalankan');
+    }
+
+    /**
+     * 3e. Test Webhook Cron Trigger Endpoint (for Railway / External Cron)
+     */
+    public function test_webhook_cron_trigger_endpoint(): void
+    {
+        $response = $this->getJson('/api/cron/remind-h3?force=1');
+
+        $response->assertStatus(200)
+            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('message', 'Scheduler pengingat H-3 berhasil dijalankan melalui Webhook Cron');
     }
 
     /**
