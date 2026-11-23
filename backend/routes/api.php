@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CalendarEventController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\DocumentController;
 use App\Http\Controllers\Api\FriendController;
 use App\Http\Controllers\Api\NoteController;
 use App\Http\Controllers\Api\NotificationController;
@@ -100,6 +101,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{id}', [NoteController::class, 'show']);
         Route::put('/{id}', [NoteController::class, 'update']);
         Route::delete('/{id}', [NoteController::class, 'destroy']);
+    });
+
+    // Google Documents & Spreadsheets
+    Route::prefix('documents')->group(function () {
+        Route::get('/', [DocumentController::class, 'index']);
+        Route::post('/', [DocumentController::class, 'store']);
+        Route::get('/{id}', [DocumentController::class, 'show']);
+        Route::put('/{id}', [DocumentController::class, 'update']);
+        Route::delete('/{id}', [DocumentController::class, 'destroy']);
+        Route::post('/{id}/open', [DocumentController::class, 'recordOpen']);
+        Route::post('/{id}/sync', [DocumentController::class, 'syncContent']);
     });
 
     // Realtime Notifications & Reminders

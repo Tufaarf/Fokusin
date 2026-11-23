@@ -4,6 +4,7 @@ import {
   ChevronRight,
   CircleCheck,
   Grid2X2,
+  HardDrive,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -119,6 +120,12 @@ export function AppShell() {
             icon: NotebookPen,
             description: "Dokumen & ide cepat",
           },
+          {
+            label: "Dokumen",
+            to: "/documents",
+            icon: HardDrive,
+            description: "Google Docs & Spreadsheet",
+          },
         ],
       },
       {
@@ -219,7 +226,7 @@ export function AppShell() {
     },
   ];
 
-  const isOtherActive = ["/calendar", "/notes", "/users", "/profile"].some((p) =>
+  const isOtherActive = ["/calendar", "/notes", "/documents", "/users", "/profile"].some((p) =>
     location.pathname.startsWith(p),
   );
 

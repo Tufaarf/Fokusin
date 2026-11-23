@@ -17,6 +17,8 @@ export class FokusinSocket {
   private channelSubscriptions: Set<string> = new Set();
   private reconnectTimer: number | null = null;
   private token: string | null = null;
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 2;
 
   constructor() {
     if (typeof window !== "undefined") {
@@ -26,6 +28,17 @@ export class FokusinSocket {
 
   connect() {
     if (typeof window === "undefined") return;
+
+    // Check if Reverb WebSocket is explicitly disabled
+    if (import.meta.env.VITE_REVERB_ENABLED === "false") {
+      return;
+    }
+
+    // Stop retrying if max attempts reached to avoid console error loops when offline
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      return;
+    }
+
     if (
       this.socket &&
       (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)
@@ -48,6 +61,7 @@ export class FokusinSocket {
       this.socket = new WebSocket(url);
 
       this.socket.onopen = () => {
+        this.reconnectAttempts = 0;
         // Re-subscribe to all active channels
         for (const channel of this.channelSubscriptions) {
           this.sendSubscribe(channel);
@@ -109,8 +123,14 @@ export class FokusinSocket {
 
       this.socket.onclose = () => {
         this.socket = null;
-        // Reconnect after 10s if tab is still visible
-        if (!document.hidden && !this.reconnectTimer) {
+        this.reconnectAttempts++;
+
+        // Reconnect after 10s if under max attempts and tab is still visible
+        if (
+          !document.hidden &&
+          !this.reconnectTimer &&
+          this.reconnectAttempts < this.maxReconnectAttempts
+        ) {
           this.reconnectTimer = window.setTimeout(() => {
             this.reconnectTimer = null;
             this.connect();
@@ -164,6 +184,7 @@ export class FokusinSocket {
   }
 
   disconnect() {
+    this.reconnectAttempts = 0;
     if (this.reconnectTimer) {
       window.clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;

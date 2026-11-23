@@ -129,3 +129,27 @@ export type Note = {
   createdAt?: string;
   updatedAt?: string;
 };
+
+export type GoogleDocumentType = "docs" | "sheets" | "slides" | "forms" | "drive";
+
+export type GoogleDocument = {
+  id: string;
+  userId?: string | number;
+  userName?: string;
+  userEmail?: string;
+  title: string;
+  url: string;
+  type: GoogleDocumentType;
+  fileId: string;
+  embedUrl: string;
+  category: string;
+  description?: string;
+  content?: string;
+  color?: string;
+  isStarred?: boolean;
+  lastOpenedAt?: string;
+  lastSyncedAt?: string;
+  syncStatus?: "synced" | "syncing" | "pending" | "error";
+  createdAt: string;
+  updatedAt: string;
+};

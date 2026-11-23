@@ -4,6 +4,7 @@ import { AppShell } from "../components/AppShell";
 import { LoginPage, RegisterPage } from "../pages/AuthPages";
 import { CalendarPage } from "../pages/CalendarPage";
 import { DashboardPage } from "../pages/DashboardPage";
+import { DocumentsPage } from "../pages/DocumentsPage";
 import { MessagesPage } from "../pages/MessagesPage";
 import { NotesPage } from "../pages/NotesPage";
 import { ProfilePage } from "../pages/ProfilePage";
@@ -29,6 +30,7 @@ export const router = createBrowserRouter([
           { path: "tasks", Component: TasksPage },
           { path: "messages", Component: MessagesPage },
           { path: "notes", Component: NotesPage },
+          { path: "documents", Component: DocumentsPage },
           { path: "profile", Component: ProfilePage },
           { path: "users", Component: UsersManagementPage },
         ],

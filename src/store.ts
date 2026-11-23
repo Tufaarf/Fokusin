@@ -1,11 +1,14 @@
 import { create } from "zustand";
-import { initialChats, initialEvents, initialNotes, initialProjects, initialTasks } from "./data";
+import { initialChats, initialDocuments, initialEvents, initialNotes, initialProjects, initialTasks } from "./data";
 import { api } from "./services/api";
 import { realtimeSocket } from "./services/echo";
+import { parseGoogleDocumentUrl, getGoogleEmbedUrl } from "./utils/googleDocs";
 import type {
   CalendarEvent,
   ChatMessage,
   ChatRoom,
+  GoogleDocument,
+  GoogleDocumentType,
   Note,
   Project,
   ReplyPreview,
@@ -29,16 +32,19 @@ type AppState = {
   events: CalendarEvent[];
   chats: ChatRoom[];
   notes: Note[];
+  documents: GoogleDocument[];
   sidebarCollapsed: boolean;
   theme: "light" | "dark";
   currentUser: User | null;
   isLoading: boolean;
   notesLoading: boolean;
+  documentsLoading: boolean;
   toggleSidebar: () => void;
   toggleTheme: () => void;
   syncWithBackend: () => Promise<void>;
   syncChats: () => Promise<void>;
   syncNotes: (q?: string, tag?: string) => Promise<void>;
+  syncDocuments: (q?: string, type?: string, category?: string) => Promise<void>;
   markAsRead: (chatId: string) => void;
   addReceivedMessage: (chatId: string, messageData: any) => void;
   moveTask: (taskId: string, status: TaskStatus) => void;
@@ -98,6 +104,21 @@ type AppState = {
   updateNote: (id: string | number, updates: Partial<Note>) => Promise<void>;
   deleteNote: (id: string | number) => Promise<void>;
   togglePinNote: (id: string | number) => Promise<void>;
+  addDocument: (docInput: {
+    title?: string;
+    url: string;
+    type?: GoogleDocumentType;
+    category?: string;
+    description?: string;
+    content?: string;
+    color?: string;
+    isStarred?: boolean;
+    syncStatus?: "synced" | "syncing" | "pending" | "error";
+  }) => Promise<GoogleDocument>;
+  updateDocument: (id: string, updates: Partial<GoogleDocument>) => Promise<void>;
+  deleteDocument: (id: string) => Promise<void>;
+  toggleStarDocument: (id: string) => Promise<void>;
+  recordOpenDocument: (id: string) => void;
   updateProfile: (data: {
     name: string;
     username?: string;
@@ -115,6 +136,25 @@ const initialTheme = (): "light" | "dark" =>
   typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches
     ? "dark"
     : "light";
+
+export const loadInitialDocuments = (): GoogleDocument[] => {
+  if (typeof window === "undefined") return initialDocuments;
+  try {
+    const saved = window.localStorage.getItem("fokusin_documents");
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+  return initialDocuments;
+};
+
+export const saveDocumentsToStorage = (docs: GoogleDocument[]) => {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem("fokusin_documents", JSON.stringify(docs));
+  } catch {}
+};
 
 export const SESSION_TIMEOUT_MS = 15 * 60 * 1000; // 15 menit
 
@@ -215,11 +255,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     return [];
   })(),
   notes: storedUser() ? [] : initialNotes,
+  documents: loadInitialDocuments(),
   sidebarCollapsed: false,
   theme: initialTheme(),
   currentUser: storedUser(),
   isLoading: false,
   notesLoading: false,
+  documentsLoading: false,
 
   toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
   toggleTheme: () => set((state) => ({ theme: state.theme === "dark" ? "light" : "dark" })),
@@ -233,12 +275,13 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     set({ isLoading: true });
     try {
-      const [dashRes, projRes, chatRes, notesRes, taskRes, meRes] = await Promise.allSettled([
+      const [dashRes, projRes, chatRes, notesRes, taskRes, docsRes, meRes] = await Promise.allSettled([
         api.dashboard.get(),
         api.projects.list(),
         api.chats.list(),
         api.notes.list(),
         api.tasks.list(),
+        api.documents.list(),
         api.auth.me(),
       ]);
 
@@ -302,10 +345,32 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (notesRes.status === "fulfilled" && notesRes.value?.data) {
         set({ notes: notesRes.value.data });
       }
+
+      if (docsRes.status === "fulfilled" && docsRes.value?.data && Array.isArray(docsRes.value.data)) {
+        if (docsRes.value.data.length > 0) {
+          set({ documents: docsRes.value.data });
+          saveDocumentsToStorage(docsRes.value.data);
+        }
+      }
     } catch {
       // Offline fallback: retains initial mock data
     } finally {
       set({ isLoading: false });
+    }
+  },
+
+  syncDocuments: async (q?: string, type?: string, category?: string) => {
+    set({ documentsLoading: true });
+    try {
+      const res = await api.documents.list({ q, type, category });
+      if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+        set({ documents: res.data });
+        saveDocumentsToStorage(res.data);
+      }
+    } catch (err) {
+      console.warn("Could not sync documents from backend, using local store", err);
+    } finally {
+      set({ documentsLoading: false });
     }
   },
 
@@ -1250,6 +1315,147 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  addDocument: async (docInput) => {
+    const parsed = parseGoogleDocumentUrl(docInput.url);
+    const docType: GoogleDocumentType = docInput.type || parsed.type || "docs";
+    const fileId = parsed.fileId || `file-${Date.now()}`;
+    const embedUrl = parsed.embedUrl || getGoogleEmbedUrl(fileId, docType, "edit");
+    const tempId = `doc-${Date.now()}`;
+
+    const docTitle = docInput.title?.trim() || parsed.suggestedTitle || "Dokumen Baru";
+    const initialContent =
+      docInput.content ||
+      `<h2>${docTitle}</h2><p>Mulai ketik isi dokumen Anda di sini dengan editor WYSIWYG. Perubahan akan disinkronkan secara langsung ke Google Docs.</p>`;
+
+    const newDoc: GoogleDocument = {
+      id: tempId,
+      userId: get().currentUser?.id,
+      userName: get().currentUser?.name || "You",
+      userEmail: get().currentUser?.email || "",
+      title: docTitle,
+      url: parsed.normalizedUrl || docInput.url.trim(),
+      type: docType,
+      fileId,
+      embedUrl,
+      category: docInput.category || "Umum",
+      description: docInput.description || "",
+      content: initialContent,
+      color:
+        docInput.color ||
+        (docType === "sheets" ? "#0F9D58" : docType === "slides" ? "#F4B400" : "#4285F4"),
+      isStarred: !!docInput.isStarred,
+      syncStatus: docInput.syncStatus || "synced",
+      lastSyncedAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      lastOpenedAt: new Date().toISOString(),
+    };
+
+    set((state) => {
+      const updated = [newDoc, ...state.documents];
+      saveDocumentsToStorage(updated);
+      return { documents: updated };
+    });
+
+    try {
+      const res = await api.documents.create({
+        title: newDoc.title,
+        url: newDoc.url,
+        type: newDoc.type,
+        category: newDoc.category,
+        description: newDoc.description,
+        color: newDoc.color,
+        is_starred: newDoc.isStarred,
+      });
+
+      if (res?.data) {
+        set((state) => {
+          const updated = state.documents.map((d) => (d.id === tempId ? { ...d, ...res.data } : d));
+          saveDocumentsToStorage(updated);
+          return { documents: updated };
+        });
+        return res.data;
+      }
+    } catch (err) {
+      console.warn("Could not save document to server, stored locally:", err);
+    }
+
+    return newDoc;
+  },
+
+  updateDocument: async (id, updates) => {
+    set((state) => {
+      const updated = state.documents.map((d) => {
+        if (d.id === id) {
+          const merged = { ...d, ...updates, updatedAt: new Date().toISOString() };
+          if (updates.url && updates.url !== d.url) {
+            const p = parseGoogleDocumentUrl(updates.url);
+            merged.fileId = p.fileId || d.fileId;
+            merged.type = (updates.type || p.type || d.type) as GoogleDocumentType;
+            merged.embedUrl = p.embedUrl || getGoogleEmbedUrl(merged.fileId, merged.type, "edit");
+          }
+          return merged;
+        }
+        return d;
+      });
+      saveDocumentsToStorage(updated);
+      return { documents: updated };
+    });
+
+    try {
+      await api.documents.update(id, updates);
+    } catch (err) {
+      console.warn("Could not update document on server:", err);
+    }
+  },
+
+  deleteDocument: async (id) => {
+    set((state) => {
+      const updated = state.documents.filter((d) => d.id !== id);
+      saveDocumentsToStorage(updated);
+      return { documents: updated };
+    });
+
+    try {
+      await api.documents.delete(id);
+    } catch (err) {
+      console.warn("Could not delete document on server:", err);
+    }
+  },
+
+  toggleStarDocument: async (id) => {
+    const doc = get().documents.find((d) => d.id === id);
+    if (!doc) return;
+    const newStarred = !doc.isStarred;
+
+    set((state) => {
+      const updated = state.documents.map((d) =>
+        d.id === id ? { ...d, isStarred: newStarred, updatedAt: new Date().toISOString() } : d,
+      );
+      saveDocumentsToStorage(updated);
+      return { documents: updated };
+    });
+
+    try {
+      await api.documents.update(id, { is_starred: newStarred });
+    } catch (err) {
+      console.warn("Could not toggle star on server:", err);
+    }
+  },
+
+  recordOpenDocument: (id) => {
+    const nowIso = new Date().toISOString();
+    set((state) => {
+      const updated = state.documents.map((d) =>
+        d.id === id ? { ...d, lastOpenedAt: nowIso } : d,
+      );
+      saveDocumentsToStorage(updated);
+      return { documents: updated };
+    });
+
+    api.documents.recordOpen(id).catch(() => {});
+  },
+
   updateProfile: async (data) => {
     try {
       const res = await api.auth.updateProfile(data);
@@ -1367,8 +1573,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       events: initialEvents,
       chats: initialChats,
       notes: initialNotes,
+      documents: loadInitialDocuments(),
       isLoading: false,
       notesLoading: false,
+      documentsLoading: false,
     });
 
     // 4. Kirim sinyal revoke token ke backend secara asinkron

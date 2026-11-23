@@ -615,4 +615,66 @@ export const api = {
       });
     },
   },
+
+  documents: {
+    async list(params?: { q?: string; type?: string; category?: string; is_starred?: boolean }) {
+      const searchParams = new URLSearchParams();
+      if (params?.q) searchParams.append("q", params.q);
+      if (params?.type) searchParams.append("type", params.type);
+      if (params?.category) searchParams.append("category", params.category);
+      if (params?.is_starred !== undefined) searchParams.append("is_starred", String(params.is_starred));
+      const query = searchParams.toString() ? `?${searchParams.toString()}` : "";
+      return request<{ data: any[] }>(`/documents${query}`);
+    },
+    async get(id: string | number) {
+      return request<{ data: any }>(`/documents/${id}`);
+    },
+    async create(data: {
+      title: string;
+      url: string;
+      type?: string;
+      category?: string;
+      description?: string;
+      color?: string;
+      is_starred?: boolean;
+    }) {
+      return request<{ message: string; data: any }>("/documents", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    },
+    async update(
+      id: string | number,
+      data: Partial<{
+        title: string;
+        url: string;
+        type: string;
+        category: string;
+        description: string;
+        color: string;
+        is_starred: boolean;
+      }>,
+    ) {
+      return request<{ message: string; data: any }>(`/documents/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      });
+    },
+    async delete(id: string | number) {
+      return request<{ message: string }>(`/documents/${id}`, {
+        method: "DELETE",
+      });
+    },
+    async recordOpen(id: string | number) {
+      return request<{ message: string }>(`/documents/${id}/open`, {
+        method: "POST",
+      });
+    },
+    async syncContent(id: string | number, content: string) {
+      return request<{ message: string; data: any }>(`/documents/${id}/sync`, {
+        method: "POST",
+        body: JSON.stringify({ content }),
+      });
+    },
+  },
 };
