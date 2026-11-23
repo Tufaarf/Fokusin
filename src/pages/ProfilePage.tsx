@@ -137,9 +137,9 @@ export function ProfilePage() {
       variant: "warning",
     });
     if (confirmed) {
+      navigate("/login", { replace: true });
       await logout();
       toast.info("Anda telah berhasil keluar dari akun.");
-      navigate("/login", { replace: true });
     }
   };
 

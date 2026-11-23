@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { initialChats, initialEvents, initialNotes, initialProjects, initialTasks } from "./data";
 import { api } from "./services/api";
+import { realtimeSocket } from "./services/echo";
 import type {
   CalendarEvent,
   ChatMessage,
@@ -113,14 +114,43 @@ const initialTheme = (): "light" | "dark" =>
     ? "dark"
     : "light";
 
+export const SESSION_TIMEOUT_MS = 15 * 60 * 1000; // 15 menit
+
+export const checkIsSessionExpired = (): boolean => {
+  if (typeof window === "undefined") return false;
+  const token = window.localStorage.getItem("fokusin_token");
+  if (!token) return true;
+
+  const lastActiveStr = window.localStorage.getItem("fokusin_last_active");
+  if (!lastActiveStr) return false;
+
+  const lastActive = parseInt(lastActiveStr, 10);
+  if (isNaN(lastActive)) return false;
+
+  return Date.now() - lastActive >= SESSION_TIMEOUT_MS;
+};
+
 const storedUser = (): User | null => {
   if (typeof window === "undefined") return null;
   try {
     const token = window.localStorage.getItem("fokusin_token");
     if (!token) {
       window.localStorage.removeItem("fokusin-user");
+      window.localStorage.removeItem("fokusin_last_active");
       return null;
     }
+
+    // Periksa apakah sesi telah kedaluwarsa setelah web ditutup atau tidak aktif lebih dari 15 menit
+    if (checkIsSessionExpired()) {
+      window.localStorage.removeItem("fokusin_token");
+      window.localStorage.removeItem("fokusin-user");
+      window.localStorage.removeItem("fokusin_last_active");
+      try {
+        window.sessionStorage.setItem("fokusin_expired_notice", "1");
+      } catch {}
+      return null;
+    }
+
     const value = window.localStorage.getItem("fokusin-user");
     return value ? (JSON.parse(value) as User) : null;
   } catch {
@@ -193,6 +223,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   toggleTheme: () => set((state) => ({ theme: state.theme === "dark" ? "light" : "dark" })),
 
   syncWithBackend: async () => {
+    const initialToken =
+      typeof window !== "undefined" ? window.localStorage.getItem("fokusin_token") : null;
+    if (!initialToken || !get().currentUser) {
+      return;
+    }
+
     set({ isLoading: true });
     try {
       const [dashRes, projRes, chatRes, notesRes, taskRes, meRes] = await Promise.allSettled([
@@ -203,6 +239,18 @@ export const useAppStore = create<AppState>((set, get) => ({
         api.tasks.list(),
         api.auth.me(),
       ]);
+
+      // Pastikan pengguna belum logout saat request berjalan di background
+      const activeToken =
+        typeof window !== "undefined" ? window.localStorage.getItem("fokusin_token") : null;
+      if (!activeToken || !get().currentUser) {
+        return;
+      }
+
+      if (meRes.status === "rejected" && (meRes.reason as any)?.status === 401) {
+        await get().logout();
+        return;
+      }
 
       if (meRes.status === "fulfilled" && meRes.value?.user) {
         const u = meRes.value.user;
@@ -260,9 +308,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   syncNotes: async (q?: string, tag?: string) => {
+    if (typeof window !== "undefined" && !window.localStorage.getItem("fokusin_token")) return;
+    if (!get().currentUser) return;
     set({ notesLoading: true });
     try {
       const res = await api.notes.list(q, tag);
+      if (typeof window !== "undefined" && !window.localStorage.getItem("fokusin_token")) return;
+      if (!get().currentUser) return;
       if (res?.data && Array.isArray(res.data)) {
         set({ notes: res.data });
       }
@@ -274,8 +326,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   syncChats: async () => {
+    if (typeof window !== "undefined" && !window.localStorage.getItem("fokusin_token")) return;
+    if (!get().currentUser) return;
     try {
       const res = await api.chats.list();
+      if (typeof window !== "undefined" && !window.localStorage.getItem("fokusin_token")) return;
+      if (!get().currentUser) return;
       if (res?.data && Array.isArray(res.data)) {
         set((state) => {
           const incomingRooms = (res.data as ChatRoom[]).map((r) => ({
@@ -1202,6 +1258,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       is_superadmin: isSuper,
     };
     window.localStorage.setItem("fokusin-user", JSON.stringify(user));
+    window.localStorage.setItem("fokusin_last_active", String(Date.now()));
+    window.localStorage.removeItem("fokusin_logout_event");
     set({
       currentUser: user,
       projects: [],
@@ -1234,6 +1292,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       is_superadmin: isSuper,
     };
     window.localStorage.setItem("fokusin-user", JSON.stringify(user));
+    window.localStorage.setItem("fokusin_last_active", String(Date.now()));
+    window.localStorage.removeItem("fokusin_logout_event");
     set({
       currentUser: user,
       projects: [],
@@ -1246,21 +1306,35 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   logout: async () => {
+    // 1. Putuskan koneksi real-time websocket
+    realtimeSocket.disconnect();
+
+    // 2. Bersihkan seluruh token dan data sesi dari localStorage seketika
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem("fokusin-user");
+      window.localStorage.removeItem("fokusin_token");
+      window.localStorage.removeItem("fokusin_last_active");
+      // Notifikasi ke tab browser lain agar sinkron logout seketika
+      window.localStorage.setItem("fokusin_logout_event", String(Date.now()));
+    }
+
+    // 3. Reset state Zustand seketika agar UI langsung berpindah dan menu terproteksi
+    set({
+      currentUser: null,
+      projects: initialProjects,
+      tasks: initialTasks,
+      events: initialEvents,
+      chats: initialChats,
+      notes: initialNotes,
+      isLoading: false,
+      notesLoading: false,
+    });
+
+    // 4. Kirim sinyal revoke token ke backend secara asinkron
     try {
       await api.auth.logout();
     } catch {
-      // Abaikan jika token di server sudah tidak valid
-    } finally {
-      window.localStorage.removeItem("fokusin-user");
-      window.localStorage.removeItem("fokusin_token");
-      set({
-        currentUser: null,
-        projects: initialProjects,
-        tasks: initialTasks,
-        events: initialEvents,
-        chats: initialChats,
-        notes: initialNotes,
-      });
+      // Abaikan jika token di server sudah tidak valid atau offline
     }
   },
 }));

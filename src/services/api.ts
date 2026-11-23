@@ -76,12 +76,28 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   let lastError: any = null;
 
   for (const baseUrl of baseUrls) {
+    let internalTimeout: ReturnType<typeof setTimeout> | null = null;
     try {
       const url = `${baseUrl}${endpoint}`;
+      
+      let requestSignal = options.signal;
+      if (!requestSignal && typeof AbortController !== "undefined") {
+        const controller = new AbortController();
+        requestSignal = controller.signal;
+        // Timeout 6 detik per kandidat request agar tidak menggantung jika server offline
+        internalTimeout = setTimeout(() => controller.abort(), 6000);
+      }
+
       const response = await fetch(url, {
         ...options,
         headers,
+        signal: requestSignal,
       });
+
+      if (internalTimeout) {
+        clearTimeout(internalTimeout);
+        internalTimeout = null;
+      }
 
       if (response.status === 204) {
         cachedBaseUrl = baseUrl;
@@ -97,6 +113,21 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
+        // Otomatis bersihkan sesi jika token kedaluwarsa atau tidak valid di server (401 Unauthorized)
+        if (
+          response.status === 401 &&
+          !endpoint.includes("/auth/login") &&
+          !endpoint.includes("/auth/register")
+        ) {
+          if (typeof window !== "undefined") {
+            localStorage.removeItem("fokusin_token");
+            localStorage.removeItem("fokusin-user");
+            localStorage.removeItem("fokusin_last_active");
+            localStorage.setItem("fokusin_logout_event", String(Date.now()));
+            window.dispatchEvent(new CustomEvent("fokusin:unauthorized"));
+          }
+        }
+
         throw new ApiError(
           data.message || `HTTP error! status: ${response.status}`,
           response.status,
@@ -106,11 +137,15 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
       return data;
     } catch (err: any) {
+      if (internalTimeout) {
+        clearTimeout(internalTimeout);
+        internalTimeout = null;
+      }
       // If it is an API response error (e.g. 422 Unprocessable, 401 Unauthorized), do not retry; rethrow immediately
       if (err instanceof ApiError) {
         throw err;
       }
-      // If network connection failed ("Failed to fetch"), attempt next candidate URL
+      // If network connection failed ("Failed to fetch") or timed out, attempt next candidate URL
       lastError = err;
     }
   }
@@ -146,9 +181,17 @@ export const api = {
     },
     async logout() {
       try {
-        await request("/auth/logout", { method: "POST" });
+        let signal: AbortSignal | undefined = undefined;
+        if (typeof AbortSignal !== "undefined" && "timeout" in AbortSignal) {
+          signal = AbortSignal.timeout(2500);
+        }
+        await request("/auth/logout", { method: "POST", signal });
+      } catch {
+        // Abaikan jika token di server sudah tidak valid atau backend offline
       } finally {
-        localStorage.removeItem("fokusin_token");
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("fokusin_token");
+        }
       }
     },
     async me() {

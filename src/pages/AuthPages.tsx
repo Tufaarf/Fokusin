@@ -1,5 +1,5 @@
 import { ArrowRight, Check, Eye, EyeOff, Moon, Sun } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router";
 import { Button, inputClass } from "../components/ui";
@@ -28,7 +28,22 @@ function AuthPage({ mode }: { mode: AuthMode }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  if (currentUser) return <Navigate to="/" replace />;
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const notice = window.sessionStorage.getItem("fokusin_expired_notice");
+      if (notice) {
+        window.sessionStorage.removeItem("fokusin_expired_notice");
+        toast.warning(
+          "Sesi Anda telah berakhir karena tidak ada aktivitas selama 15 menit. Silakan masuk kembali.",
+          "Sesi Berakhir",
+        );
+      }
+    }
+  }, []);
+
+  const hasToken =
+    typeof window !== "undefined" ? !!window.localStorage.getItem("fokusin_token") : false;
+  if (currentUser && hasToken) return <Navigate to="/" replace />;
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();

@@ -29,7 +29,10 @@ export default function App() {
 
       return () => {
         window.clearInterval(chatInterval);
+        realtimeSocket.disconnect();
       };
+    } else {
+      realtimeSocket.disconnect();
     }
   }, [currentUser, syncWithBackend, syncChats]);
 

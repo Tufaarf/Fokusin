@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useRealtimeNotifications } from "../hooks/useRealtimeNotifications";
+import { useAutoLogout } from "../hooks/useAutoLogout";
 import { confirmDialog } from "../services/dialog";
 import { toast } from "../services/notifications";
 import { useAppStore } from "../store";
@@ -74,6 +75,9 @@ export function AppShell() {
 
   // Activate global realtime notification listener (messages, reminders)
   useRealtimeNotifications();
+
+  // Activate automatic logout on 15 minutes of inactivity or session expiry
+  useAutoLogout();
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 1000);
@@ -196,9 +200,9 @@ export function AppShell() {
       variant: "warning",
     });
     if (confirmed) {
+      navigate("/login", { replace: true });
       await logout();
       toast.info("Anda telah keluar dari akun.", "Sesi Berakhir");
-      navigate("/login", { replace: true });
     }
   };
 
@@ -402,6 +406,16 @@ export function AppShell() {
                   <LogOut size={15} />
                 </button>
               </div>
+            )}
+            {sidebarCollapsed && (
+              <button
+                onClick={handleLogout}
+                className="mt-2 flex h-8 w-8 items-center justify-center rounded-md text-zinc-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400"
+                title="Keluar dari Fokusin"
+                aria-label="Keluar dari Fokusin"
+              >
+                <LogOut size={15} />
+              </button>
             )}
           </div>
         </div>
