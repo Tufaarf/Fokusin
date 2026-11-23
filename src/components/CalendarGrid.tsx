@@ -63,7 +63,8 @@ export function CalendarGrid({ events, range, onRangeChange }: Props) {
           const iso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
           const selected = iso >= range[0] && iso <= range[1];
           const today = iso === new Date().toISOString().slice(0, 10);
-          const hasEvent = events.some((event) => event.date === iso);
+          const dayEvents = events.filter((event) => event.date === iso);
+          const hasEvent = dayEvents.length > 0;
           return (
             <button
               key={iso}
@@ -79,7 +80,21 @@ export function CalendarGrid({ events, range, onRangeChange }: Props) {
             >
               {date.getDate()}
               {hasEvent && (
-                <span className="absolute bottom-1 h-1 w-1 rounded-full bg-violet-500" />
+                <div className="absolute bottom-1 flex items-center justify-center gap-0.5">
+                  {Array.from(new Set(dayEvents.map((e) => e.type)))
+                    .slice(0, 3)
+                    .map((type) => (
+                      <span
+                        key={type}
+                        className={cn(
+                          "h-1 w-1 rounded-full",
+                          type === "Meeting" && "bg-violet-500",
+                          type === "Deadline" && "bg-rose-500",
+                          type === "Event" && "bg-sky-500",
+                        )}
+                      />
+                    ))}
+                </div>
               )}
             </button>
           );

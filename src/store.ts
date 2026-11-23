@@ -44,6 +44,8 @@ type AppState = {
   moveTask: (taskId: string, status: TaskStatus) => void;
   addProject: (name: string, members: string[]) => void;
   addEvent: (event: Omit<CalendarEvent, "id">) => void;
+  updateEvent: (id: string, updates: Partial<Omit<CalendarEvent, "id">>) => Promise<void>;
+  deleteEvent: (id: string) => Promise<void>;
   addFriend: (email: string) => void;
   addChatParticipant: (chatId: string, identifier: string) => Promise<any>;
   sendMessage: (
@@ -538,6 +540,45 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       })
       .catch(() => {});
+  },
+
+  updateEvent: async (id, updates) => {
+    // Optimistic UI update
+    set((state) => ({
+      events: state.events.map((e) => (e.id === id ? { ...e, ...updates } : e)),
+    }));
+
+    try {
+      const response = await api.events.update(id, {
+        title: updates.title,
+        date: updates.date,
+        endDate: updates.endDate,
+        time: updates.time,
+        type: updates.type,
+        projectId: updates.projectId,
+      });
+
+      if (response?.data) {
+        set((state) => ({
+          events: state.events.map((e) => (e.id === id ? response.data : e)),
+        }));
+      }
+    } catch (err) {
+      console.warn("Failed to update event on server", err);
+    }
+  },
+
+  deleteEvent: async (id) => {
+    // Optimistic UI update
+    set((state) => ({
+      events: state.events.filter((e) => e.id !== id),
+    }));
+
+    try {
+      await api.events.delete(id);
+    } catch (err) {
+      console.warn("Failed to delete event on server", err);
+    }
   },
 
   addFriend: (identifier) => {

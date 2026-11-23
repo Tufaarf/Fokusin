@@ -447,10 +447,11 @@ export const api = {
   },
 
   events: {
-    async list(startDate?: string, endDate?: string) {
+    async list(startDate?: string, endDate?: string, type?: string) {
       const params = new URLSearchParams();
       if (startDate) params.append("startDate", startDate);
       if (endDate) params.append("endDate", endDate);
+      if (type) params.append("type", type);
       const query = params.toString() ? `?${params.toString()}` : "";
       return request<{ data: any[] }>(`/events${query}`);
     },
@@ -465,6 +466,37 @@ export const api = {
       return request<{ data: any }>("/events", {
         method: "POST",
         body: JSON.stringify(event),
+      });
+    },
+    async update(
+      id: string,
+      event: {
+        title?: string;
+        date?: string;
+        event_date?: string;
+        endDate?: string;
+        end_date?: string;
+        time?: string;
+        type?: "Meeting" | "Deadline" | "Event";
+        projectId?: string;
+        project_id?: string;
+      },
+    ) {
+      return request<{ message?: string; data: any }>(`/events/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          title: event.title,
+          event_date: event.event_date || event.date,
+          end_date: event.end_date || event.endDate,
+          time: event.time,
+          type: event.type,
+          project_id: event.project_id || event.projectId,
+        }),
+      });
+    },
+    async delete(id: string) {
+      return request<{ message?: string }>(`/events/${id}`, {
+        method: "DELETE",
       });
     },
   },
