@@ -137,6 +137,8 @@ export type GoogleDocument = {
   userId?: string | number;
   userName?: string;
   userEmail?: string;
+  projectId?: string | null;
+  projectName?: string | null;
   title: string;
   url: string;
   type: GoogleDocumentType;

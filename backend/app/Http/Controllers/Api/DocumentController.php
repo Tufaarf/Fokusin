@@ -4,12 +4,60 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Document;
+use App\Models\Project;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class DocumentController extends Controller
 {
+    /**
+     * Check if user has permission to view/access the document.
+     * Rule:
+     * - Personal documents (project_id is null): only the uploader can access.
+     * - Project documents (project_id is not null): ONLY members/creator of that project can access.
+     */
+    private function canUserAccessDocument(?User $user, Document $doc): bool
+    {
+        if (!$user) {
+            return false;
+        }
+
+        if ($user->isSuperAdmin()) {
+            return true;
+        }
+
+        if (!empty($doc->project_id)) {
+            return $user->isInProject($doc->project_id);
+        }
+
+        return $doc->user_id === $user->id;
+    }
+
+    /**
+     * Check if user has permission to edit/delete the document.
+     * Rule: Uploader, or Project Owner/Admin, or Superadmin.
+     */
+    private function canUserManageDocument(?User $user, Document $doc): bool
+    {
+        if (!$user) {
+            return false;
+        }
+
+        if ($user->isSuperAdmin() || $doc->user_id === $user->id) {
+            return true;
+        }
+
+        if (!empty($doc->project_id)) {
+            $project = $doc->project ?? Project::find($doc->project_id);
+            if ($project && $project->created_by === $user->id) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /**
      * Helper to format document model for frontend consumption.
      */
@@ -20,6 +68,8 @@ class DocumentController extends Controller
             'userId' => $doc->user_id,
             'userName' => $doc->user?->name ?? 'User',
             'userEmail' => $doc->user?->email,
+            'projectId' => $doc->project_id,
+            'projectName' => $doc->project?->name,
             'title' => $doc->title,
             'url' => $doc->url,
             'type' => $doc->type,
@@ -103,7 +153,10 @@ class DocumentController extends Controller
     }
 
     /**
-     * Get documents of the authenticated user with search and type filters.
+     * Get documents accessible by the authenticated user with search and type filters.
+     * Documents returned:
+     * 1. Personal documents uploaded by user (project_id is null)
+     * 2. Documents associated with projects where user is creator/member
      */
     public function index(Request $request): JsonResponse
     {
@@ -112,10 +165,37 @@ class DocumentController extends Controller
             return response()->json(['data' => []]);
         }
 
-        $query = Document::with('user');
+        $accessibleProjectIds = $user->accessibleProjectIds();
+        $query = Document::with(['user', 'project']);
 
-        // Strictly show only documents uploaded by the authenticated user
-        $query->where('user_id', $user->id);
+        // Filter by project if requested
+        if ($request->filled('project_id') && $request->input('project_id') !== 'all') {
+            $targetProject = $request->input('project_id');
+
+            if ($targetProject === 'personal') {
+                $query->where('user_id', $user->id)->whereNull('project_id');
+            } else {
+                // If user is not member of target project and not superadmin, block access
+                if (!in_array($targetProject, $accessibleProjectIds, true) && !$user->isSuperAdmin()) {
+                    return response()->json(['data' => []]);
+                }
+                $query->where('project_id', $targetProject);
+            }
+        } else {
+            // General query: Personal docs uploaded by user OR Project docs user has membership in
+            if (!$user->isSuperAdmin()) {
+                $query->where(function ($q) use ($user, $accessibleProjectIds) {
+                    $q->where(function ($sub) use ($user) {
+                        $sub->where('user_id', $user->id)
+                            ->whereNull('project_id');
+                    });
+
+                    if (!empty($accessibleProjectIds)) {
+                        $q->orWhereIn('project_id', $accessibleProjectIds);
+                    }
+                });
+            }
+        }
 
         if ($request->filled('q')) {
             $q = trim($request->input('q'));
@@ -151,7 +231,7 @@ class DocumentController extends Controller
     }
 
     /**
-     * Store a new Google document link.
+     * Store a new Google document link (Personal or Mentioned/Attached to a Project).
      */
     public function store(Request $request): JsonResponse
     {
@@ -163,6 +243,8 @@ class DocumentController extends Controller
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'url' => 'required|string|url',
+            'project_id' => 'nullable|string|exists:projects,id',
+            'projectId' => 'nullable|string|exists:projects,id',
             'type' => 'nullable|string|in:docs,sheets,slides,forms,drive',
             'category' => 'nullable|string|max:100',
             'description' => 'nullable|string',
@@ -172,11 +254,23 @@ class DocumentController extends Controller
             'isStarred' => 'nullable|boolean',
         ]);
 
+        $projectId = $validated['project_id'] ?? $validated['projectId'] ?? null;
+
+        // If assigning to project, verify user is member of that project
+        if (!empty($projectId)) {
+            if (!$user->isInProject($projectId) && !$user->isSuperAdmin()) {
+                return response()->json([
+                    'message' => 'Hanya anggota yang terdaftar di dalam project ini yang dapat menyertakan dokumen.',
+                ], 403);
+            }
+        }
+
         $details = $this->parseGoogleDetails($validated['url'], $validated['type'] ?? 'docs');
         $isStarred = $validated['is_starred'] ?? $validated['isStarred'] ?? false;
 
         $doc = Document::create([
             'user_id' => $user->id,
+            'project_id' => $projectId,
             'title' => $validated['title'],
             'url' => $validated['url'],
             'type' => $details['type'],
@@ -192,7 +286,7 @@ class DocumentController extends Controller
             'last_opened_at' => now(),
         ]);
 
-        $doc->load('user');
+        $doc->load(['user', 'project']);
 
         return response()->json([
             'message' => 'Dokumen berhasil ditambahkan.',
@@ -201,14 +295,18 @@ class DocumentController extends Controller
     }
 
     /**
-     * Show document detail.
+     * Show document detail with membership permission check.
      */
     public function show(Request $request, $id): JsonResponse
     {
         $user = $request->user() ?? User::first();
-        $doc = Document::with('user')
-            ->where('user_id', $user?->id)
-            ->findOrFail($id);
+        $doc = Document::with(['user', 'project'])->findOrFail($id);
+
+        if (!$this->canUserAccessDocument($user, $doc)) {
+            return response()->json([
+                'message' => 'Anda bukan anggota dari project ini atau tidak memiliki izin akses dokumen ini.',
+            ], 403);
+        }
 
         return response()->json([
             'data' => $this->formatDocument($doc),
@@ -216,16 +314,24 @@ class DocumentController extends Controller
     }
 
     /**
-     * Update an existing document.
+     * Update an existing document with membership check.
      */
     public function update(Request $request, $id): JsonResponse
     {
         $user = $request->user() ?? User::first();
-        $doc = Document::where('user_id', $user?->id)->findOrFail($id);
+        $doc = Document::with(['user', 'project'])->findOrFail($id);
+
+        if (!$this->canUserManageDocument($user, $doc)) {
+            return response()->json([
+                'message' => 'Anda tidak memiliki hak untuk mengedit dokumen ini.',
+            ], 403);
+        }
 
         $validated = $request->validate([
             'title' => 'nullable|string|max:255',
             'url' => 'nullable|string|url',
+            'project_id' => 'nullable|string|exists:projects,id',
+            'projectId' => 'nullable|string|exists:projects,id',
             'type' => 'nullable|string|in:docs,sheets,slides,forms,drive',
             'category' => 'nullable|string|max:100',
             'description' => 'nullable|string',
@@ -233,6 +339,16 @@ class DocumentController extends Controller
             'is_starred' => 'nullable|boolean',
             'isStarred' => 'nullable|boolean',
         ]);
+
+        if (array_key_exists('project_id', $validated) || array_key_exists('projectId', $validated)) {
+            $newProjectId = $validated['project_id'] ?? $validated['projectId'] ?? null;
+            if (!empty($newProjectId) && !$user->isInProject($newProjectId) && !$user->isSuperAdmin()) {
+                return response()->json([
+                    'message' => 'Anda bukan anggota dari project target.',
+                ], 403);
+            }
+            $doc->project_id = $newProjectId;
+        }
 
         if (isset($validated['title'])) $doc->title = $validated['title'];
         if (isset($validated['category'])) $doc->category = $validated['category'];
@@ -257,7 +373,7 @@ class DocumentController extends Controller
         }
 
         $doc->save();
-        $doc->load('user');
+        $doc->load(['user', 'project']);
 
         return response()->json([
             'message' => 'Dokumen berhasil diperbarui.',
@@ -266,13 +382,14 @@ class DocumentController extends Controller
     }
 
     /**
-     * Record last opened timestamp.
+     * Record last opened timestamp with access check.
      */
     public function recordOpen(Request $request, $id): JsonResponse
     {
         $user = $request->user() ?? User::first();
-        $doc = Document::where('user_id', $user?->id)->find($id);
-        if ($doc) {
+        $doc = Document::with('project')->find($id);
+
+        if ($doc && $this->canUserAccessDocument($user, $doc)) {
             $doc->update(['last_opened_at' => now()]);
         }
 
@@ -287,7 +404,13 @@ class DocumentController extends Controller
     public function syncContent(Request $request, $id): JsonResponse
     {
         $user = $request->user() ?? User::first();
-        $doc = Document::where('user_id', $user?->id)->findOrFail($id);
+        $doc = Document::with('project')->findOrFail($id);
+
+        if (!$this->canUserAccessDocument($user, $doc)) {
+            return response()->json([
+                'message' => 'Anda tidak memiliki akses ke dokumen ini.',
+            ], 403);
+        }
 
         $validated = $request->validate([
             'content' => 'required|string',
@@ -306,12 +429,19 @@ class DocumentController extends Controller
     }
 
     /**
-     * Delete document.
+     * Delete document with management permission check.
      */
     public function destroy(Request $request, $id): JsonResponse
     {
         $user = $request->user() ?? User::first();
-        $doc = Document::where('user_id', $user?->id)->findOrFail($id);
+        $doc = Document::with('project')->findOrFail($id);
+
+        if (!$this->canUserManageDocument($user, $doc)) {
+            return response()->json([
+                'message' => 'Hanya pemilik dokumen atau admin project yang dapat menghapus dokumen ini.',
+            ], 403);
+        }
+
         $doc->delete();
 
         return response()->json([
@@ -319,3 +449,4 @@ class DocumentController extends Controller
         ]);
     }
 }
+

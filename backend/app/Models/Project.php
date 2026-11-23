@@ -57,4 +57,9 @@ class Project extends Model
     {
         return $this->hasMany(CalendarEvent::class, 'project_id');
     }
+
+    public function documents(): HasMany
+    {
+        return $this->hasMany(Document::class, 'project_id');
+    }
 }

@@ -105,4 +105,22 @@ class User extends Authenticatable
             || $this->email === 'superadmin@acme.id'
             || $this->email === 'admin@fokusin.com';
     }
+
+    /**
+     * Get IDs of all projects the user has access to (as creator or member).
+     */
+    public function accessibleProjectIds(): array
+    {
+        $memberProjectIds = $this->projects()->pluck('projects.id')->toArray();
+        $createdProjectIds = Project::where('created_by', $this->id)->pluck('id')->toArray();
+        return array_values(array_unique(array_merge($memberProjectIds, $createdProjectIds)));
+    }
+
+    /**
+     * Check if user is a member or creator of a given project.
+     */
+    public function isInProject(string $projectId): bool
+    {
+        return in_array($projectId, $this->accessibleProjectIds(), true);
+    }
 }

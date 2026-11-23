@@ -1,5 +1,12 @@
 import { create } from "zustand";
-import { initialChats, initialDocuments, initialEvents, initialNotes, initialProjects, initialTasks } from "./data";
+import {
+  initialChats,
+  initialDocuments,
+  initialEvents,
+  initialNotes,
+  initialProjects,
+  initialTasks,
+} from "./data";
 import { api } from "./services/api";
 import { realtimeSocket } from "./services/echo";
 import { parseGoogleDocumentUrl, getGoogleEmbedUrl } from "./utils/googleDocs";
@@ -44,7 +51,12 @@ type AppState = {
   syncWithBackend: () => Promise<void>;
   syncChats: () => Promise<void>;
   syncNotes: (q?: string, tag?: string) => Promise<void>;
-  syncDocuments: (q?: string, type?: string, category?: string) => Promise<void>;
+  syncDocuments: (
+    q?: string,
+    type?: string,
+    category?: string,
+    projectId?: string,
+  ) => Promise<void>;
   markAsRead: (chatId: string) => void;
   addReceivedMessage: (chatId: string, messageData: any) => void;
   moveTask: (taskId: string, status: TaskStatus) => void;
@@ -107,6 +119,8 @@ type AppState = {
   addDocument: (docInput: {
     title?: string;
     url: string;
+    projectId?: string | null;
+    projectName?: string | null;
     type?: GoogleDocumentType;
     category?: string;
     description?: string;
@@ -275,15 +289,16 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     set({ isLoading: true });
     try {
-      const [dashRes, projRes, chatRes, notesRes, taskRes, docsRes, meRes] = await Promise.allSettled([
-        api.dashboard.get(),
-        api.projects.list(),
-        api.chats.list(),
-        api.notes.list(),
-        api.tasks.list(),
-        api.documents.list(),
-        api.auth.me(),
-      ]);
+      const [dashRes, projRes, chatRes, notesRes, taskRes, docsRes, meRes] =
+        await Promise.allSettled([
+          api.dashboard.get(),
+          api.projects.list(),
+          api.chats.list(),
+          api.notes.list(),
+          api.tasks.list(),
+          api.documents.list(),
+          api.auth.me(),
+        ]);
 
       // Pastikan pengguna belum logout saat request berjalan di background
       const activeToken =
@@ -346,7 +361,11 @@ export const useAppStore = create<AppState>((set, get) => ({
         set({ notes: notesRes.value.data });
       }
 
-      if (docsRes.status === "fulfilled" && docsRes.value?.data && Array.isArray(docsRes.value.data)) {
+      if (
+        docsRes.status === "fulfilled" &&
+        docsRes.value?.data &&
+        Array.isArray(docsRes.value.data)
+      ) {
         if (docsRes.value.data.length > 0) {
           set({ documents: docsRes.value.data });
           saveDocumentsToStorage(docsRes.value.data);
@@ -359,10 +378,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  syncDocuments: async (q?: string, type?: string, category?: string) => {
+  syncDocuments: async (q?: string, type?: string, category?: string, projectId?: string) => {
     set({ documentsLoading: true });
     try {
-      const res = await api.documents.list({ q, type, category });
+      const res = await api.documents.list({ q, type, category, project_id: projectId });
       if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
         set({ documents: res.data });
         saveDocumentsToStorage(res.data);
@@ -647,7 +666,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   addFriend: (identifier) => {
-    const cleanName = identifier.includes("@") ? identifier.split("@")[0] : identifier.replace(/^@/, "");
+    const cleanName = identifier.includes("@")
+      ? identifier.split("@")[0]
+      : identifier.replace(/^@/, "");
     const tempChat: ChatRoom = {
       id: `chat-${Date.now()}`,
       name: cleanName,
@@ -1140,9 +1161,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
 
     set((state) => ({
-      tasks: state.tasks.map((task) =>
-        task.id === taskId ? { ...task, ...updates } : task,
-      ),
+      tasks: state.tasks.map((task) => (task.id === taskId ? { ...task, ...updates } : task)),
     }));
 
     try {
@@ -1332,6 +1351,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       userId: get().currentUser?.id,
       userName: get().currentUser?.name || "You",
       userEmail: get().currentUser?.email || "",
+      projectId: docInput.projectId || null,
+      projectName:
+        docInput.projectName ||
+        (docInput.projectId ? get().projects.find((p) => p.id === docInput.projectId)?.name : null),
       title: docTitle,
       url: parsed.normalizedUrl || docInput.url.trim(),
       type: docType,
@@ -1361,6 +1384,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const res = await api.documents.create({
         title: newDoc.title,
         url: newDoc.url,
+        project_id: newDoc.projectId,
         type: newDoc.type,
         category: newDoc.category,
         description: newDoc.description,
@@ -1403,7 +1427,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
 
     try {
-      await api.documents.update(id, updates);
+      await api.documents.update(id, {
+        ...updates,
+        ...(updates.projectId !== undefined ? { project_id: updates.projectId } : {}),
+      });
     } catch (err) {
       console.warn("Could not update document on server:", err);
     }

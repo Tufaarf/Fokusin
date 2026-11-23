@@ -7,7 +7,7 @@ import { toast } from "../services/notifications";
 import { useAppStore } from "../store";
 
 export function ProjectsPage() {
-  const { projects, tasks, addProject, currentUser } = useAppStore();
+  const { projects, tasks, documents, addProject, currentUser } = useAppStore();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [emails, setEmails] = useState([""]);
@@ -43,6 +43,7 @@ export function ProjectsPage() {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {projects.map((project) => {
           const projectTasks = tasks.filter((task) => task.projectId === project.id);
+          const projectDocs = documents.filter((doc) => doc.projectId === project.id);
           const done = projectTasks.filter((task) => task.status === "done").length;
           const progress = projectTasks.length ? Math.round((done / projectTasks.length) * 100) : 0;
           return (
@@ -58,7 +59,7 @@ export function ProjectsPage() {
               </div>
               <h2 className="mt-5 font-semibold">{project.name}</h2>
               <p className="mt-1 text-xs text-zinc-500">
-                {projectTasks.length} tasks · {done} selesai
+                {projectTasks.length} tasks · {projectDocs.length} dokumen · {done} selesai
               </p>
               <div className="mt-6 h-1 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-900">
                 <div
@@ -125,7 +126,10 @@ export function ProjectsPage() {
                 <div
                   className={`${inputClass} flex items-center bg-zinc-50 text-zinc-500 dark:bg-zinc-900`}
                 >
-                  {currentUser?.username ? `@${currentUser.username}` : (currentUser?.email || "you@acme.id")} <span className="ml-auto text-[10px]">You · Owner</span>
+                  {currentUser?.username
+                    ? `@${currentUser.username}`
+                    : currentUser?.email || "you@acme.id"}{" "}
+                  <span className="ml-auto text-[10px]">You · Owner</span>
                 </div>
                 {emails.map((email, index) => (
                   <input

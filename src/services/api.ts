@@ -79,7 +79,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     let internalTimeout: ReturnType<typeof setTimeout> | null = null;
     try {
       const url = `${baseUrl}${endpoint}`;
-      
+
       let requestSignal = options.signal;
       if (!requestSignal && typeof AbortController !== "undefined") {
         const controller = new AbortController();
@@ -264,7 +264,12 @@ export const api = {
      */
     async addMember(
       projectId: string,
-      payload: { email?: string; username?: string; identifier?: string; user_id?: string | number },
+      payload: {
+        email?: string;
+        username?: string;
+        identifier?: string;
+        user_id?: string | number;
+      },
     ) {
       return request<{
         message: string;
@@ -617,12 +622,20 @@ export const api = {
   },
 
   documents: {
-    async list(params?: { q?: string; type?: string; category?: string; is_starred?: boolean }) {
+    async list(params?: {
+      q?: string;
+      type?: string;
+      category?: string;
+      is_starred?: boolean;
+      project_id?: string;
+    }) {
       const searchParams = new URLSearchParams();
       if (params?.q) searchParams.append("q", params.q);
       if (params?.type) searchParams.append("type", params.type);
       if (params?.category) searchParams.append("category", params.category);
-      if (params?.is_starred !== undefined) searchParams.append("is_starred", String(params.is_starred));
+      if (params?.is_starred !== undefined)
+        searchParams.append("is_starred", String(params.is_starred));
+      if (params?.project_id) searchParams.append("project_id", params.project_id);
       const query = searchParams.toString() ? `?${searchParams.toString()}` : "";
       return request<{ data: any[] }>(`/documents${query}`);
     },
@@ -632,6 +645,8 @@ export const api = {
     async create(data: {
       title: string;
       url: string;
+      project_id?: string | null;
+      projectId?: string | null;
       type?: string;
       category?: string;
       description?: string;
@@ -648,6 +663,8 @@ export const api = {
       data: Partial<{
         title: string;
         url: string;
+        project_id: string | null;
+        projectId: string | null;
         type: string;
         category: string;
         description: string;

@@ -9,6 +9,7 @@ import {
   Eye,
   FileSpreadsheet,
   FileText,
+  FolderGit2,
   FolderOpen,
   HardDrive,
   Info,
@@ -93,6 +94,7 @@ export function DocumentsPage() {
     recordOpenDocument,
     currentUser,
     theme,
+    projects,
   } = useAppStore();
 
   // ========================================================
@@ -101,6 +103,7 @@ export function DocumentsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedType, setSelectedType] = useState<"all" | GoogleDocumentType>("all");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedProject, setSelectedProject] = useState<string>("all");
   const [onlyStarred, setOnlyStarred] = useState(false);
   const [sortBy, setSortBy] = useState<"updated" | "opened" | "title-asc" | "title-desc" | "type">(
     "updated",
@@ -139,6 +142,7 @@ export function DocumentsPage() {
   const [editingDoc, setEditingDoc] = useState<GoogleDocument | null>(null);
   const [formUrl, setFormUrl] = useState("");
   const [formTitle, setFormTitle] = useState("");
+  const [formProjectId, setFormProjectId] = useState<string>("");
   const [formCategory, setFormCategory] = useState("Umum");
   const [formDescription, setFormDescription] = useState("");
   const [formColor, setFormColor] = useState("#4285F4");
@@ -146,6 +150,39 @@ export function DocumentsPage() {
   const [urlAnalysis, setUrlAnalysis] = useState<ReturnType<typeof parseGoogleDocumentUrl> | null>(
     null,
   );
+
+  // Project Yang Bisa Diakses Oleh Pengguna Saat Ini
+  const userProjects = useMemo(() => {
+    if (!currentUser) return [];
+    if (currentUser.is_superadmin || currentUser.role === "superadmin") return projects;
+    return projects.filter((p) => {
+      if (p.created_by && String(p.created_by) === String(currentUser.id)) return true;
+      if (
+        p.members?.some(
+          (m) =>
+            String(m).toLowerCase() === String(currentUser.name).toLowerCase() ||
+            String(m).toLowerCase() === String(currentUser.email).toLowerCase() ||
+            String(m) === String(currentUser.id),
+        )
+      ) {
+        return true;
+      }
+      if (
+        p.member_details?.some(
+          (m) =>
+            String(m.id) === String(currentUser.id) ||
+            (m.email && m.email.toLowerCase() === currentUser.email?.toLowerCase()),
+        )
+      ) {
+        return true;
+      }
+      return false;
+    });
+  }, [projects, currentUser]);
+
+  const userProjectIds = useMemo(() => {
+    return new Set(userProjects.map((p) => p.id));
+  }, [userProjects]);
 
   // Initial Sync from Backend
   useEffect(() => {
@@ -184,7 +221,7 @@ export function DocumentsPage() {
   }, [menuOpenId]);
 
   // ========================================================
-  // PRIVACY: DOKUMEN HANYA DILIHAT OLEH PENGUNGGAHNYA
+  // PRIVACY: HAK AKSES DOKUMEN (PRIBADI & ANGGOTA PROJECT)
   // ========================================================
   const myDocuments = useMemo(() => {
     if (!currentUser) {
@@ -192,6 +229,13 @@ export function DocumentsPage() {
     }
 
     return documents.filter((doc) => {
+      // 1. Dokumen yang disertakan ke dalam project: hanya anggota project tersebut yang dapat mengakses
+      if (doc.projectId) {
+        if (currentUser.is_superadmin || currentUser.role === "superadmin") return true;
+        return userProjectIds.has(doc.projectId);
+      }
+
+      // 2. Dokumen pribadi (tanpa project): hanya dapat dilihat oleh pengunggahnya sendiri
       if (
         doc.userId !== undefined &&
         doc.userId !== null &&
@@ -219,7 +263,7 @@ export function DocumentsPage() {
 
       return false;
     });
-  }, [documents, currentUser]);
+  }, [documents, currentUser, userProjectIds]);
 
   // Daftar Kategori Unik Milik Pengguna
   const allCategories = useMemo(() => {
@@ -238,12 +282,22 @@ export function DocumentsPage() {
         if (selectedCategory !== "all" && doc.category !== selectedCategory) return false;
         if (onlyStarred && !doc.isStarred) return false;
 
+        // Filter Scope Project
+        if (selectedProject !== "all") {
+          if (selectedProject === "personal") {
+            if (doc.projectId) return false;
+          } else {
+            if (doc.projectId !== selectedProject) return false;
+          }
+        }
+
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
           const matchTitle = doc.title.toLowerCase().includes(q);
           const matchCategory = doc.category.toLowerCase().includes(q);
           const matchDesc = doc.description?.toLowerCase().includes(q) ?? false;
-          if (!matchTitle && !matchCategory && !matchDesc) return false;
+          const matchProject = doc.projectName?.toLowerCase().includes(q) ?? false;
+          if (!matchTitle && !matchCategory && !matchDesc && !matchProject) return false;
         }
 
         return true;
@@ -305,9 +359,10 @@ export function DocumentsPage() {
   };
 
   // Form CRUD Handlers
-  const handleOpenAddModal = () => {
+  const handleOpenAddModal = (presetProjectId?: string | React.MouseEvent) => {
     setFormUrl("");
     setFormTitle("");
+    setFormProjectId(typeof presetProjectId === "string" ? presetProjectId : "");
     setFormCategory("Umum");
     setFormDescription("");
     setFormColor("#4285F4");
@@ -320,6 +375,7 @@ export function DocumentsPage() {
     setEditingDoc(doc);
     setFormUrl(doc.url);
     setFormTitle(doc.title);
+    setFormProjectId(doc.projectId || "");
     setFormCategory(doc.category || "Umum");
     setFormDescription(doc.description || "");
     setFormColor(doc.color || "#4285F4");
@@ -343,10 +399,14 @@ export function DocumentsPage() {
     }
 
     const finalTitle = formTitle.trim() || parsed.suggestedTitle;
+    const selectedProjectObj = userProjects.find((p) => p.id === formProjectId);
+
     try {
       const created = await addDocument({
         url: formUrl.trim(),
         title: finalTitle,
+        projectId: formProjectId || null,
+        projectName: selectedProjectObj ? selectedProjectObj.name : null,
         category: formCategory.trim() || "Umum",
         description: formDescription.trim(),
         color: formColor,
@@ -354,7 +414,11 @@ export function DocumentsPage() {
       });
 
       setIsAddModalOpen(false);
-      toast.success(`Dokumen "${finalTitle}" berhasil ditambahkan.`);
+      toast.success(
+        formProjectId && selectedProjectObj
+          ? `Dokumen "${finalTitle}" berhasil disertakan ke project ${selectedProjectObj.name}.`
+          : `Dokumen "${finalTitle}" berhasil ditambahkan.`,
+      );
       handleOpenDoc(created);
     } catch {
       toast.error("Gagal menambahkan dokumen.");
@@ -369,9 +433,13 @@ export function DocumentsPage() {
       return;
     }
 
+    const selectedProjectObj = userProjects.find((p) => p.id === formProjectId);
+
     try {
       await updateDocument(editingDoc.id, {
         title: formTitle.trim(),
+        projectId: formProjectId || null,
+        projectName: selectedProjectObj ? selectedProjectObj.name : null,
         category: formCategory.trim() || "Umum",
         description: formDescription.trim(),
         color: formColor,
@@ -382,6 +450,8 @@ export function DocumentsPage() {
         setActiveEmbedDoc({
           ...activeEmbedDoc,
           title: formTitle.trim(),
+          projectId: formProjectId || null,
+          projectName: selectedProjectObj ? selectedProjectObj.name : null,
           category: formCategory.trim() || "Umum",
           description: formDescription.trim(),
           color: formColor,
@@ -570,6 +640,25 @@ export function DocumentsPage() {
                 <List size={16} />
               </button>
             </div>
+
+            {/* Filter Scope Project */}
+            {userProjects.length > 0 && (
+              <div className="relative">
+                <select
+                  value={selectedProject}
+                  onChange={(e) => setSelectedProject(e.target.value)}
+                  className="h-10 rounded-xl border border-zinc-200 bg-white px-3 pr-8 text-xs font-semibold text-zinc-700 shadow-2xs outline-none transition focus:border-violet-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
+                >
+                  <option value="all">📁 Semua Scope (Pribadi & Project)</option>
+                  <option value="personal">🔒 Hanya Dokumen Pribadi</option>
+                  {userProjects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      📁 Project: {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Sort Selector */}
             <div className="relative">
@@ -942,13 +1031,24 @@ export function DocumentsPage() {
 
                   {/* Card Footer: Metadata and Star Button */}
                   <div className="flex items-center justify-between border-t border-zinc-100 px-3.5 py-2.5 text-xs text-zinc-400 dark:border-zinc-800/80">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate text-[11px]">
-                        {formatTimeAgo(doc.updatedAt || doc.createdAt)}
+                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                      {doc.projectId ? (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 dark:bg-violet-950/60 dark:text-violet-300 truncate max-w-[130px]">
+                          <FolderGit2 size={10} className="shrink-0" />
+                          <span className="truncate">{doc.projectName || doc.projectId}</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400 shrink-0">
+                          <Lock size={9} className="shrink-0" />
+                          Pribadi
+                        </span>
+                      )}
+                      <span className="truncate text-[11px] text-zinc-400">
+                        • {formatTimeAgo(doc.updatedAt || doc.createdAt)}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 shrink-0 ml-1.5">
                       <button
                         type="button"
                         onClick={(e) => {
@@ -1021,11 +1121,24 @@ export function DocumentsPage() {
                               <p className="truncate font-semibold text-zinc-900 group-hover:text-violet-600 dark:text-zinc-100 dark:group-hover:text-violet-400 max-w-xs sm:max-w-md">
                                 {doc.title}
                               </p>
-                              {doc.description && (
-                                <p className="truncate text-[11px] text-zinc-400 max-w-xs">
-                                  {doc.description}
-                                </p>
-                              )}
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                {doc.projectId ? (
+                                  <span className="inline-flex items-center gap-1 rounded bg-violet-50 px-1.5 py-0.2 text-[10px] font-semibold text-violet-700 dark:bg-violet-950/60 dark:text-violet-300 shrink-0">
+                                    <FolderGit2 size={10} />
+                                    {doc.projectName || doc.projectId}
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 rounded bg-zinc-100 px-1.5 py-0.2 text-[10px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400 shrink-0">
+                                    <Lock size={9} />
+                                    Pribadi
+                                  </span>
+                                )}
+                                {doc.description && (
+                                  <p className="truncate text-[11px] text-zinc-400 max-w-xs">
+                                    • {doc.description}
+                                  </p>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </td>
@@ -1143,6 +1256,15 @@ export function DocumentsPage() {
                       </span>
                       <span>•</span>
                       <span className="truncate">Kategori: {activeEmbedDoc.category}</span>
+                      {activeEmbedDoc.projectId && (
+                        <>
+                          <span>•</span>
+                          <span className="inline-flex items-center gap-1 font-semibold text-violet-600 dark:text-violet-400 truncate">
+                            <FolderGit2 size={11} className="shrink-0" />
+                            {activeEmbedDoc.projectName || activeEmbedDoc.projectId}
+                          </span>
+                        </>
+                      )}
                       <span className="hidden sm:inline">•</span>
                       <span className="hidden sm:inline">
                         Terakhir dibuka: {formatTimeAgo(activeEmbedDoc.lastOpenedAt)}
@@ -1400,6 +1522,29 @@ export function DocumentsPage() {
                 />
               </div>
 
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                  Sertakan ke Project (Opsional)
+                </label>
+                <select
+                  value={formProjectId}
+                  onChange={(e) => setFormProjectId(e.target.value)}
+                  className={cn(inputClass, "mt-1.5 text-xs")}
+                >
+                  <option value="">🔒 Dokumen Pribadi (Hanya Saya yang Bisa Akses)</option>
+                  {userProjects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      📁 {p.name} ({p.id}) — Hanya anggota project
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[11px] text-zinc-400">
+                  {formProjectId
+                    ? "Dokumen ini hanya dapat dilihat dan diakses oleh anggota yang ada di dalam project ini."
+                    : "Dokumen ini bersifat pribadi dan hanya dapat diakses oleh Anda sendiri."}
+                </p>
+              </div>
+
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300">
@@ -1532,6 +1677,29 @@ export function DocumentsPage() {
                   onChange={(e) => setFormTitle(e.target.value)}
                   className={cn(inputClass, "mt-1.5 text-xs")}
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                  Sertakan ke Project (Opsional)
+                </label>
+                <select
+                  value={formProjectId}
+                  onChange={(e) => setFormProjectId(e.target.value)}
+                  className={cn(inputClass, "mt-1.5 text-xs")}
+                >
+                  <option value="">🔒 Dokumen Pribadi (Hanya Saya yang Bisa Akses)</option>
+                  {userProjects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      📁 {p.name} ({p.id}) — Hanya anggota project
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[11px] text-zinc-400">
+                  {formProjectId
+                    ? "Dokumen ini hanya dapat dilihat dan diakses oleh anggota yang ada di dalam project ini."
+                    : "Dokumen ini bersifat pribadi dan hanya dapat diakses oleh Anda sendiri."}
+                </p>
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
